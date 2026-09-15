@@ -52,6 +52,13 @@ def test_reads_instruction_from_episode_metadata() -> None:
     assert converter._find_instructions(data) == [data["metadata"]["instruction"]]
 
 
+def test_instruction_pool_is_assigned_deterministically() -> None:
+    instructions = ["first", "second", "third"]
+
+    assert converter._choose_instruction({}, instructions, episode_index=0) == "first"
+    assert converter._choose_instruction({}, instructions, episode_index=4) == "second"
+
+
 def test_finalize_dataset_flushes_the_dataset_parquet_writer() -> None:
     class Dataset:
         finalized = False
