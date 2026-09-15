@@ -60,7 +60,7 @@ def test_instruction_pool_is_assigned_deterministically() -> None:
     assert converter._choose_instruction({}, instructions, episode_index=4) == "second"
 
 
-def test_streaming_dataset_forwards_hardware_codec_and_queue(monkeypatch, tmp_path: Path) -> None:
+def test_streaming_dataset_forwards_h264_codec_and_queue(monkeypatch, tmp_path: Path) -> None:
     captured = {}
 
     class Dataset:
@@ -73,7 +73,6 @@ def test_streaming_dataset_forwards_hardware_codec_and_queue(monkeypatch, tmp_pa
     monkeypatch.setattr(converter, "LeRobotDataset", Dataset)
     config = dataclasses.replace(
         converter.DEFAULT_DATASET_CONFIG,
-        vcodec="auto",
         encoder_queue_maxsize=512,
     )
 
@@ -85,7 +84,7 @@ def test_streaming_dataset_forwards_hardware_codec_and_queue(monkeypatch, tmp_pa
         dataset_config=config,
     )
 
-    assert captured["vcodec"] == "auto"
+    assert captured["vcodec"] == "h264"
     assert captured["encoder_queue_maxsize"] == 512
 
 
