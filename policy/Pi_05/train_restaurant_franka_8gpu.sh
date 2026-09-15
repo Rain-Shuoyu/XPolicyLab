@@ -22,4 +22,4 @@ export OPENPI_UV_BIN="${OPENPI_UV_BIN:-${SHARED_ROOT}/bin/uv}"
 
 mkdir -p "${LOG_ROOT}"
 exec > >(tee -a "${LOG_ROOT}/train_restaurant_franka_8gpu.log") 2>&1
-exec "${POLICY_DIR}/train.sh" restaurant_pass_counter franka_dense50 franka joint 0 0,1,2,3,4,5,6,7
+exec bash "${POLICY_DIR}/train.sh" restaurant_pass_counter franka_dense50 franka joint 0 0,1,2,3,4,5,6,7
