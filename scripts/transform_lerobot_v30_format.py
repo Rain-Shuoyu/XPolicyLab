@@ -73,8 +73,9 @@ class DatasetConfig:
 
     video_backend: str | None = "pyav"
 
-    # LeRobot 0.4 resolves this to h264_nvenc on NVIDIA hosts.
-    vcodec: str = "auto"
+    # Software H.264 is reliable on RTX 5090 hosts whose FFmpeg build can
+    # enumerate NVENC but cannot open the Blackwell encoder device.
+    vcodec: str = "h264"
 
     encoder_queue_maxsize: int = 512
 
