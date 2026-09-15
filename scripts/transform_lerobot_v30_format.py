@@ -314,6 +314,8 @@ def _find_instructions(data):
     candidates = [
         _get_nested(data, "instruction"),
         _get_nested(data, "instructions"),
+        _get_nested(data, "metadata", "instruction"),
+        _get_nested(data, "metadata", "instructions"),
     ]
 
     for candidate in candidates:
@@ -329,13 +331,30 @@ def _find_instructions(data):
     return []
 
 
-def _choose_instruction(data):
+def _choose_instruction(data, instruction_pool=None, *, episode_index=0):
+    if instruction_pool:
+        return instruction_pool[episode_index % len(instruction_pool)]
+
     instructions = _find_instructions(data)
 
     if not instructions:
         return ""
 
     return random.choice(instructions)
+
+
+def _load_instruction_pool(path):
+    if path is None:
+        return []
+
+    instructions = [
+        line.strip()
+        for line in Path(path).read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if not instructions:
+        raise ValueError(f"Instruction file is empty: {path}")
+    return instructions
 
 
 # ============================================================
@@ -661,6 +680,8 @@ def convert_one(
     target_dims,
     image_height,
     image_width,
+    instruction_pool=None,
+    episode_index=0,
 ):
 
     data = load(
@@ -692,7 +713,11 @@ def convert_one(
         "action",
     )
 
-    instruction = _choose_instruction(data)
+    instruction = _choose_instruction(
+        data,
+        instruction_pool,
+        episode_index=episode_index,
+    )
 
     if not instruction:
         raise ValueError("No instruction found")
@@ -863,6 +888,12 @@ def main():
         help="Integer LeRobot FPS override. Frames are not resampled.",
     )
     parser.add_argument(
+        "--instruction-file",
+        type=Path,
+        default=None,
+        help="UTF-8 text file with one task instruction per line; assigned round-robin by episode.",
+    )
+    parser.add_argument(
         "--resolution",
         type=str,
         default=None,
@@ -883,6 +914,7 @@ def main():
     )
 
     args = parser.parse_args()
+    instruction_pool = _load_instruction_pool(args.instruction_file)
 
     targets = _resolve_targets(args.patterns, input_dir=args.input_dir)
 
@@ -987,6 +1019,8 @@ def main():
                         target_dims,
                         image_height,
                         image_width,
+                        instruction_pool,
+                        task_success,
                     )
 
                     task_success += 1

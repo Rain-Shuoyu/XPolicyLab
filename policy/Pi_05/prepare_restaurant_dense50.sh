@@ -4,6 +4,7 @@ set -euo pipefail
 POLICY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 XPOLICYLAB_DIR="$(cd "${POLICY_DIR}/../.." && pwd)"
 OPENPI_DIR="${POLICY_DIR}/openpi"
+INSTRUCTION_FILE="${POLICY_DIR}/restaurant_franka_instructions.txt"
 
 SHARED_ROOT="${OPENPI_SHARED_ROOT:-/mnt/afs/L202500576}"
 COLLECTION_SUMMARY="${OPENPI_COLLECTION_SUMMARY:-${SHARED_ROOT}/projects/XPolicyLab/data/osb/restaurant_pass_counter/dense_augmentation_50/collection_summary.json}"
@@ -21,7 +22,7 @@ export OPENPI_UV_BIN="${OPENPI_UV_BIN:-${SHARED_ROOT}/bin/uv}"
 mkdir -p "${TRAIN_ROOT}" "${HF_LEROBOT_HOME}" "${OPENPI_ASSETS_ROOT}"
 mkdir -p "${STAGING_DIR}"
 
-export COLLECTION_SUMMARY STAGING_DIR MANIFEST_PATH
+export COLLECTION_SUMMARY STAGING_DIR MANIFEST_PATH INSTRUCTION_FILE
 cd "${OPENPI_DIR}"
 VIRTUAL_ENV="${OPENPI_VENV}" "${OPENPI_UV_BIN}" run --active --frozen --group lerobot python - <<'PY'
 import hashlib
@@ -79,6 +80,11 @@ manifest = {
     "lerobot_fps": 17,
     "resampled": False,
     "repo_id": os.environ["OPENPI_LEROBOT_REPO_ID"],
+    "instructions": [
+        line.strip()
+        for line in Path(os.environ["INSTRUCTION_FILE"]).read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ],
     "sources": sources,
     "expected_episode_count": 50,
     "expected_frame_count": sum(source["frame_count"] for source in sources),
@@ -94,6 +100,7 @@ VIRTUAL_ENV="${OPENPI_VENV}" \
   osb.restaurant_pass_counter.franka \
   --input-dir "${STAGING_DIR}" \
   --fps 17 \
+  --instruction-file "${INSTRUCTION_FILE}" \
   --repo_id "${OPENPI_LEROBOT_REPO_ID}" \
   --max_episode 50
 
