@@ -128,7 +128,7 @@ if metadata.shapes["observation.state"] != (16,) or metadata.shapes["action"] !=
     raise ValueError("Expected 16-D observation.state and action")
 if set(metadata.camera_keys) != camera_keys:
     raise ValueError(f"Unexpected camera keys: {metadata.camera_keys}")
-if metadata.total_tasks < 1 or not metadata.tasks["task"].astype(str).str.strip().all():
+if metadata.total_tasks < 1 or not all(str(task).strip() for task in metadata.tasks.index):
     raise ValueError("Dataset task prompt is empty")
 
 dataset = LeRobotDataset(repo_id, video_backend="pyav")

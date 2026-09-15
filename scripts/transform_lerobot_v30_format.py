@@ -645,14 +645,7 @@ def configure_video_encoding(dataset: Any, dataset_config: DatasetConfig) -> Non
 
 
 def finalize_dataset(dataset: Any) -> None:
-
-    if hasattr(dataset, "stop_image_writer"):
-        dataset.stop_image_writer()
-
-    meta = getattr(dataset, "meta", None)
-
-    if meta is not None and hasattr(meta, "_close_writer"):
-        meta._close_writer()
+    dataset.finalize()
 
 
 # ============================================================

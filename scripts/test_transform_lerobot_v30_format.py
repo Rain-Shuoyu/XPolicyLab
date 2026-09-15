@@ -37,3 +37,29 @@ def test_explicit_integer_fps_overrides_environment_metadata() -> None:
 
     with pytest.raises(ValueError, match="positive integer"):
         converter._resolve_fps(0, metadata_fps=25)
+
+
+def test_finalize_dataset_flushes_the_dataset_parquet_writer() -> None:
+    class Dataset:
+        finalized = False
+
+        def finalize(self) -> None:
+            self.finalized = True
+
+    dataset = Dataset()
+
+    converter.finalize_dataset(dataset)
+
+    assert dataset.finalized is True
+
+
+def test_prepare_validates_task_prompts_from_lerobot_tasks_index() -> None:
+    prepare_script = (
+        Path(__file__).resolve().parents[1]
+        / "policy"
+        / "Pi_05"
+        / "prepare_restaurant_dense50.sh"
+    ).read_text()
+
+    assert "metadata.tasks.index" in prepare_script
+    assert 'metadata.tasks["task"]' not in prepare_script
