@@ -10,6 +10,7 @@ export HF_LEROBOT_HOME="${HF_LEROBOT_HOME:-${SHARED_ROOT}/datasets/lerobot}"
 export OPENPI_LEROBOT_REPO_ID="${OPENPI_LEROBOT_REPO_ID:-openskillbench/restaurant_pass_counter_franka_dense50}"
 export OPENPI_ASSETS_ROOT="${OPENPI_ASSETS_ROOT:-${TRAIN_ROOT}/assets}"
 export OPENPI_DATA_HOME="${OPENPI_DATA_HOME:-${TRAIN_ROOT}/openpi_cache}"
+export OPENPI_BASE_PARAMS="${OPENPI_BASE_PARAMS:-${SHARED_ROOT}/checkpoints/pi05_base/params}"
 export OPENPI_CHECKPOINT_ROOT="${OPENPI_SMOKE_CHECKPOINT_ROOT:-${TRAIN_ROOT}/smoke_checkpoints}"
 export OPENPI_TRAIN_CONFIG_NAME=pi05_restaurant_franka_lora_smoke
 export OPENPI_FSDP_DEVICES=1

@@ -49,6 +49,13 @@ _RESTAURANT_CHECKPOINT_BASE_DIR = os.environ.get(
     "/mnt/afs/L202500576/training/pi05_restaurant/checkpoints",
 )
 
+
+def _restaurant_base_params_path() -> str:
+    return os.environ.get(
+        "OPENPI_BASE_PARAMS",
+        "gs://openpi-assets/checkpoints/pi05_base/params",
+    )
+
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
 Filter: TypeAlias = nnx.filterlib.Filter
@@ -835,7 +842,7 @@ _CONFIGS = [
         assets_base_dir=_RESTAURANT_ASSETS_BASE_DIR,
         checkpoint_base_dir=_RESTAURANT_CHECKPOINT_BASE_DIR,
         weight_loader=weight_loaders.CheckpointWeightLoader(
-            "gs://openpi-assets/checkpoints/pi05_base/params"
+            _restaurant_base_params_path()
         ),
         batch_size=256,
         num_train_steps=60_000,
@@ -848,7 +855,7 @@ _CONFIGS = [
         assets_base_dir=_RESTAURANT_ASSETS_BASE_DIR,
         checkpoint_base_dir=_RESTAURANT_CHECKPOINT_BASE_DIR,
         weight_loader=weight_loaders.CheckpointWeightLoader(
-            "gs://openpi-assets/checkpoints/pi05_base/params"
+            _restaurant_base_params_path()
         ),
         batch_size=1,
         num_workers=0,

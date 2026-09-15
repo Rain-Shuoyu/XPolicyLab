@@ -46,6 +46,13 @@ def test_restaurant_full_config_uses_pi05_base_and_dual_franka_contract() -> Non
     assert output.action_dim == 16
 
 
+def test_restaurant_base_params_can_use_staged_local_checkpoint(monkeypatch) -> None:
+    local_params = "/tmp/pi05-restaurant/base/pi05_base/params"
+    monkeypatch.setenv("OPENPI_BASE_PARAMS", local_params)
+
+    assert config._restaurant_base_params_path() == local_params
+
+
 def test_restaurant_smoke_config_is_one_step_lora_without_ema_or_wandb() -> None:
     train_config = config.get_config("pi05_restaurant_franka_lora_smoke")
 
