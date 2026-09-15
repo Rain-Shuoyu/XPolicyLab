@@ -39,6 +39,19 @@ def test_explicit_integer_fps_overrides_environment_metadata() -> None:
         converter._resolve_fps(0, metadata_fps=25)
 
 
+def test_reads_instruction_from_episode_metadata() -> None:
+    data = {
+        "metadata": {
+            "instruction": (
+                "Place the hamburger, french fries, and coke can on the tray in order, "
+                "press the service bell, then return both arms home."
+            )
+        }
+    }
+
+    assert converter._find_instructions(data) == [data["metadata"]["instruction"]]
+
+
 def test_finalize_dataset_flushes_the_dataset_parquet_writer() -> None:
     class Dataset:
         finalized = False
