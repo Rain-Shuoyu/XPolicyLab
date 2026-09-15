@@ -151,6 +151,17 @@ def _discover_conversion_targets(patterns):
     return targets
 
 
+def _resolve_targets(patterns, input_dir=None):
+    if input_dir is None:
+        return _discover_conversion_targets(patterns)
+    if len(patterns) != 1:
+        raise ValueError("--input-dir requires exactly one target")
+    target = _split_pattern(patterns[0])
+    if any("*" in part or "?" in part or "[" in part for part in target):
+        raise ValueError("--input-dir target cannot contain wildcards")
+    return [target]
+
+
 def _dims_from_robot_action_info(robot_action_dim_info):
     arm_dims = robot_action_dim_info.get("arm_dim", [])
     ee_dims = robot_action_dim_info.get("ee_dim", [])
@@ -753,30 +764,41 @@ def find_input_files(input_dir):
     return unique_files
 
 
-def _collect_target_input_files(targets):
+def _collect_target_input_files(targets, input_dir=None):
+    if input_dir is not None and len(targets) != 1:
+        raise ValueError("--input-dir requires exactly one target")
+
     collected = []
 
     for bench_name, task_name, env_cfg_type in targets:
 
-        input_dir = _resolve_input_dir(
+        resolved_input_dir = _resolve_input_dir(
             bench_name,
             task_name,
             env_cfg_type,
+            input_dir,
         )
 
-        input_files = find_input_files(input_dir)
+        input_files = find_input_files(resolved_input_dir)
 
         collected.append(
             (
                 bench_name,
                 task_name,
                 env_cfg_type,
-                input_dir,
+                resolved_input_dir,
                 input_files,
             )
         )
 
     return collected
+
+
+def _resolve_fps(fps, metadata_fps):
+    resolved = metadata_fps if fps is None else fps
+    if not isinstance(resolved, int) or resolved <= 0:
+        raise ValueError("FPS must be a positive integer")
+    return resolved
 
 
 def _print_matched_targets(target_inputs):
@@ -836,6 +858,18 @@ def main():
         default=200,
     )
     parser.add_argument(
+        "--input-dir",
+        type=Path,
+        default=None,
+        help="Read episodes from this directory; requires exactly one target pattern.",
+    )
+    parser.add_argument(
+        "--fps",
+        type=int,
+        default=None,
+        help="Integer LeRobot FPS override. Frames are not resampled.",
+    )
+    parser.add_argument(
         "--resolution",
         type=str,
         default=None,
@@ -857,7 +891,7 @@ def main():
 
     args = parser.parse_args()
 
-    targets = _discover_conversion_targets(args.patterns)
+    targets = _resolve_targets(args.patterns, input_dir=args.input_dir)
 
     if not targets:
         raise FileNotFoundError(
@@ -868,7 +902,7 @@ def main():
         _plan_target_metadata(targets)
     )
 
-    target_inputs = _collect_target_input_files(targets)
+    target_inputs = _collect_target_input_files(targets, input_dir=args.input_dir)
 
     _print_matched_targets(target_inputs)
 
@@ -886,7 +920,7 @@ def main():
         repo_id=repo_id,
         robot_type="unified_robot",
         motors=motors,
-        fps=max_fps or 50,
+        fps=_resolve_fps(args.fps, metadata_fps=max_fps or 50),
 
         # IMPORTANT
         mode="video",
@@ -993,6 +1027,8 @@ def main():
 
         for file_path, reason in failures:
             print(f"  - {file_path}: {reason}")
+
+        raise RuntimeError(f"Conversion failed for {len(failures)} selected files")
 
 
 if __name__ == "__main__":

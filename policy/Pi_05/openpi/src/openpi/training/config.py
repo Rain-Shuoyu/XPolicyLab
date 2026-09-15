@@ -5,6 +5,7 @@ from collections.abc import Sequence
 import dataclasses
 import difflib
 import logging
+import os
 import pathlib
 from typing import Any, Literal, Protocol, TypeAlias
 
@@ -34,6 +35,19 @@ import openpi.transforms as _transforms
 _ROBODOJO_ASSETS_DIR = pathlib.Path(__file__).resolve().parents[3] / "assets" / "RoboDojo_assets"
 # Norm stats for Tianji Marvin + Wuji Hand (written by compute_norm_stats).
 _WUJI_ASSETS_DIR = pathlib.Path(__file__).resolve().parents[3] / "assets" / "Wuji_assets"
+
+_RESTAURANT_REPO_ID = os.environ.get(
+    "OPENPI_LEROBOT_REPO_ID",
+    "openskillbench/restaurant_pass_counter_franka_dense50",
+)
+_RESTAURANT_ASSETS_BASE_DIR = os.environ.get(
+    "OPENPI_ASSETS_ROOT",
+    "/mnt/afs/L202500576/training/pi05_restaurant/assets",
+)
+_RESTAURANT_CHECKPOINT_BASE_DIR = os.environ.get(
+    "OPENPI_CHECKPOINT_ROOT",
+    "/mnt/afs/L202500576/training/pi05_restaurant/checkpoints",
+)
 
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
@@ -245,6 +259,8 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
     # the space used by the pi internal runtime which was used to train the base model. People who
     # use standard Aloha data should set this to true.
     adapt_to_pi: bool = False
+    # Per-arm joint dimensions. Each arm is followed by one absolute gripper value.
+    joint_dims: tuple[int, int] = (6, 6)
 
     # Repack transforms.
     repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
@@ -267,10 +283,17 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         data_transforms = _transforms.Group(
             inputs=[aloha_policy.AlohaInputs(adapt_to_pi=self.adapt_to_pi)],
-            outputs=[aloha_policy.AlohaOutputs(adapt_to_pi=self.adapt_to_pi)],
+            outputs=[
+                aloha_policy.AlohaOutputs(
+                    adapt_to_pi=self.adapt_to_pi,
+                    action_dim=sum(self.joint_dims) + 2,
+                )
+            ],
         )
         if self.use_delta_joint_actions:
-            delta_action_mask = _transforms.make_bool_mask(6, -1, 6, -1)
+            delta_action_mask = _transforms.make_bool_mask(
+                self.joint_dims[0], -1, self.joint_dims[1], -1
+            )
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
                 outputs=[_transforms.AbsoluteActions(delta_action_mask)],
@@ -631,6 +654,43 @@ class TrainConfig:
 
 
 # Use `get_config` if you need to get a config by name in your code.
+_RESTAURANT_LORA_MODEL = pi0_config.Pi0Config(
+    pi05=True,
+    paligemma_variant="gemma_2b_lora",
+    action_expert_variant="gemma_300m_lora",
+)
+
+
+def _restaurant_franka_data_config() -> LeRobotAlohaDataConfig:
+    return LeRobotAlohaDataConfig(
+        repo_id=_RESTAURANT_REPO_ID,
+        assets=AssetsConfig(
+            assets_dir=str(
+                pathlib.Path(_RESTAURANT_ASSETS_BASE_DIR)
+                / "pi05_restaurant_franka_full_finetune"
+            ),
+            asset_id=_RESTAURANT_REPO_ID,
+        ),
+        joint_dims=(7, 7),
+        repack_transforms=_transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "images": {
+                            "cam_high": "observation.images.cam_high",
+                            "cam_left_wrist": "observation.images.cam_left_wrist",
+                            "cam_right_wrist": "observation.images.cam_right_wrist",
+                        },
+                        "state": "observation.state",
+                        "actions": "action",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        ),
+        base_config=DataConfig(prompt_from_task=True),
+    )
+
 _CONFIGS = [
     TrainConfig(
         name="pi05_base_aloha_full_sim_arx-x5_seed_0",
@@ -767,6 +827,36 @@ _CONFIGS = [
             decay_steps=30_000,
             decay_lr=5e-6,
         ),
+    ),
+    TrainConfig(
+        name="pi05_restaurant_franka_full_finetune",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=_restaurant_franka_data_config(),
+        assets_base_dir=_RESTAURANT_ASSETS_BASE_DIR,
+        checkpoint_base_dir=_RESTAURANT_CHECKPOINT_BASE_DIR,
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi05_base/params"
+        ),
+        batch_size=256,
+        num_train_steps=60_000,
+    ),
+    TrainConfig(
+        name="pi05_restaurant_franka_lora_smoke",
+        model=_RESTAURANT_LORA_MODEL,
+        freeze_filter=_RESTAURANT_LORA_MODEL.get_freeze_filter(),
+        data=_restaurant_franka_data_config(),
+        assets_base_dir=_RESTAURANT_ASSETS_BASE_DIR,
+        checkpoint_base_dir=_RESTAURANT_CHECKPOINT_BASE_DIR,
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi05_base/params"
+        ),
+        batch_size=1,
+        num_workers=0,
+        num_train_steps=1,
+        log_interval=1,
+        ema_decay=None,
+        wandb_enabled=False,
+        fsdp_devices=1,
     ),
 ]
 

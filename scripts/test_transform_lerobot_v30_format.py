@@ -1,0 +1,39 @@
+from pathlib import Path
+
+import pytest
+
+from scripts import transform_lerobot_v30_format as converter
+
+
+def test_collects_only_the_explicit_single_target_input_dir(tmp_path: Path) -> None:
+    selected = tmp_path / "accepted"
+    selected.mkdir()
+    episode = selected / "episode.hdf5"
+    episode.touch()
+
+    target = [("osb", "restaurant_pass_counter", "franka")]
+    collected = converter._collect_target_input_files(target, input_dir=selected)
+
+    assert collected[0][3] == selected
+    assert collected[0][4] == [episode]
+
+    with pytest.raises(ValueError, match="exactly one target"):
+        converter._collect_target_input_files(target * 2, input_dir=selected)
+
+
+def test_explicit_input_dir_resolves_exact_target_without_data_tree() -> None:
+    assert converter._resolve_targets(
+        ["osb.restaurant_pass_counter.franka"],
+        input_dir=Path("/shared/accepted"),
+    ) == [("osb", "restaurant_pass_counter", "franka")]
+
+    with pytest.raises(ValueError, match="wildcards"):
+        converter._resolve_targets(["osb.*.franka"], input_dir=Path("/shared/accepted"))
+
+
+def test_explicit_integer_fps_overrides_environment_metadata() -> None:
+    assert converter._resolve_fps(None, metadata_fps=25) == 25
+    assert converter._resolve_fps(17, metadata_fps=25) == 17
+
+    with pytest.raises(ValueError, match="positive integer"):
+        converter._resolve_fps(0, metadata_fps=25)
