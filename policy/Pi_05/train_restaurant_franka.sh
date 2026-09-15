@@ -2,6 +2,34 @@
 set -euo pipefail
 
 POLICY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ $# -ne 1 ]]; then
+  echo "Expected GPU count to be one of: 1, 2, 4, 8" >&2
+  exit 2
+fi
+GPU_COUNT=$1
+case "${GPU_COUNT}" in
+  1|2|4|8) ;;
+  *)
+    echo "Expected GPU count to be one of: 1, 2, 4, 8" >&2
+    exit 2
+    ;;
+esac
+
+VISIBLE_GPU_COUNT=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l | tr -d ' ')
+if (( GPU_COUNT > VISIBLE_GPU_COUNT )); then
+  echo "Requested ${GPU_COUNT} GPUs, but only ${VISIBLE_GPU_COUNT} are visible" >&2
+  exit 2
+fi
+
+GPU_IDS=
+for ((gpu_id = 0; gpu_id < GPU_COUNT; gpu_id++)); do
+  if [[ -n "${GPU_IDS}" ]]; then
+    GPU_IDS+=,
+  fi
+  GPU_IDS+="${gpu_id}"
+done
+
 SHARED_ROOT="${OPENPI_SHARED_ROOT:-/mnt/afs/L202500576}"
 TRAIN_ROOT="${OPENPI_TRAIN_ROOT:-${SHARED_ROOT}/training/pi05_restaurant}"
 PERSISTENT_LOG_ROOT="${OPENPI_LOG_ROOT:-${TRAIN_ROOT}/logs}"
@@ -13,17 +41,12 @@ LOCAL_LEROBOT_HOME="${LOCAL_ROOT}/lerobot"
 LOCAL_BASE_MODEL="${LOCAL_ROOT}/base/pi05_base"
 LOCAL_CHECKPOINT_ROOT="${LOCAL_ROOT}/checkpoints"
 LOCAL_LOG_ROOT="${LOCAL_ROOT}/logs"
-LOCAL_LOG="${LOCAL_LOG_ROOT}/train_restaurant_franka_8gpu.log"
-GPU_COUNT=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l | tr -d ' ')
-if [[ "${GPU_COUNT}" != 8 ]]; then
-  echo "Expected 8 GPUs, found ${GPU_COUNT}" >&2
-  exit 1
-fi
+LOCAL_LOG="${LOCAL_LOG_ROOT}/train_restaurant_franka.log"
 
 export OPENPI_LEROBOT_REPO_ID="${OPENPI_LEROBOT_REPO_ID:-openskillbench/restaurant_pass_counter_franka_dense50}"
 export OPENPI_ASSETS_ROOT="${OPENPI_ASSETS_ROOT:-${TRAIN_ROOT}/assets}"
 export OPENPI_TRAIN_CONFIG_NAME=pi05_restaurant_franka_full_finetune
-export OPENPI_FSDP_DEVICES=8
+export OPENPI_FSDP_DEVICES="${GPU_COUNT}"
 export OPENPI_VENV="${OPENPI_VENV:-${SHARED_ROOT}/venvs/pi05-openpi}"
 export OPENPI_UV_BIN="${OPENPI_UV_BIN:-${SHARED_ROOT}/bin/uv}"
 
@@ -69,7 +92,7 @@ export WANDB_DIR="${WANDB_DIR:-${LOCAL_LOG_ROOT}/wandb}"
 
 echo "[Pi_05] local_root=${LOCAL_ROOT}"
 set +e
-bash "${POLICY_DIR}/train.sh" restaurant_pass_counter franka_dense50 franka joint 0 0,1,2,3,4,5,6,7 \
+bash "${POLICY_DIR}/train.sh" restaurant_pass_counter franka_dense50 franka joint 0 "${GPU_IDS}" \
   2>&1 | tee -a "${LOCAL_LOG}"
 train_status=${PIPESTATUS[0]}
 set -e
