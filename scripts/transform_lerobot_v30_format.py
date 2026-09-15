@@ -71,8 +71,12 @@ class DatasetConfig:
 
     video_crf: int | None = 18
 
-    # pyav is the fastest & most stable in community
-    video_backend: str | None = "h264_nvenc"
+    video_backend: str | None = "pyav"
+
+    # LeRobot 0.4 resolves this to h264_nvenc on NVIDIA hosts.
+    vcodec: str = "auto"
+
+    encoder_queue_maxsize: int = 512
 
 
 DEFAULT_DATASET_CONFIG = DatasetConfig()
@@ -645,6 +649,8 @@ def create_empty_dataset(
 
         streaming_encoding=dataset_config.streaming_encoding,
         video_backend=dataset_config.video_backend,
+        vcodec=dataset_config.vcodec,
+        encoder_queue_maxsize=dataset_config.encoder_queue_maxsize,
     )
 
 
