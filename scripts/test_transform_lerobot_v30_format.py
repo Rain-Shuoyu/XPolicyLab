@@ -1,4 +1,5 @@
 from pathlib import Path
+import dataclasses
 
 import pytest
 
@@ -57,6 +58,35 @@ def test_instruction_pool_is_assigned_deterministically() -> None:
 
     assert converter._choose_instruction({}, instructions, episode_index=0) == "first"
     assert converter._choose_instruction({}, instructions, episode_index=4) == "second"
+
+
+def test_streaming_dataset_forwards_hardware_codec_and_queue(monkeypatch, tmp_path: Path) -> None:
+    captured = {}
+
+    class Dataset:
+        @staticmethod
+        def create(**kwargs):
+            captured.update(kwargs)
+            return object()
+
+    monkeypatch.setattr(converter, "HF_LEROBOT_HOME", tmp_path)
+    monkeypatch.setattr(converter, "LeRobotDataset", Dataset)
+    config = dataclasses.replace(
+        converter.DEFAULT_DATASET_CONFIG,
+        vcodec="auto",
+        encoder_queue_maxsize=512,
+    )
+
+    converter.create_empty_dataset(
+        repo_id="test/dataset",
+        robot_type="franka",
+        motors=["joint"],
+        fps=17,
+        dataset_config=config,
+    )
+
+    assert captured["vcodec"] == "auto"
+    assert captured["encoder_queue_maxsize"] == 512
 
 
 def test_finalize_dataset_flushes_the_dataset_parquet_writer() -> None:
