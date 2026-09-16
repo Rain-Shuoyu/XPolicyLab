@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import subprocess
+import tarfile
 
 import pytest
 
@@ -11,6 +12,7 @@ SCRIPT = (
     / "Pi_05"
     / "train_restaurant_franka.sh"
 )
+TRAIN_SCRIPT = SCRIPT.with_name("train.sh")
 
 
 def _write_executable(path: Path, contents: str) -> None:
@@ -44,6 +46,7 @@ done
   printf 'OPENPI_CHECKPOINT_ROOT=%s\n' "$OPENPI_CHECKPOINT_ROOT"
   printf 'OPENPI_DATA_HOME=%s\n' "$OPENPI_DATA_HOME"
   printf 'OPENPI_FSDP_DEVICES=%s\n' "$OPENPI_FSDP_DEVICES"
+  printf 'OPENPI_VENV=%s\n' "$OPENPI_VENV"
   printf 'GPU_IDS=%s\n' "$last_arg"
 } > "$CAPTURE_FILE"
 if [ "$FAKE_TRAIN_STATUS" -ne 0 ]; then
@@ -63,6 +66,13 @@ exit "$FAKE_TRAIN_STATUS"
     base_model = shared_root / "openpi-cache" / "pi05_base"
     (base_model / "params").mkdir(parents=True)
     (base_model / "params" / "weights").write_text("weights")
+    environment = tmp_path / "environment"
+    (environment / "bin").mkdir(parents=True)
+    (environment / "bin" / "python").write_text("python")
+    environment_archive = shared_root / "environments" / "pi05-openpi.tar"
+    environment_archive.parent.mkdir(parents=True)
+    with tarfile.open(environment_archive, "w") as archive:
+        archive.add(environment, arcname="pi05-openpi")
 
     train_root = shared_root / "training" / "pi05_restaurant"
     local_root = tmp_path / "node-local"
@@ -77,6 +87,7 @@ exit "$FAKE_TRAIN_STATUS"
             "OPENPI_TRAIN_ROOT": str(train_root),
             "OPENPI_NODE_LOCAL_ROOT": str(local_root),
             "OPENPI_BASE_MODEL_SOURCE": str(base_model),
+            "OPENPI_ENV_ARCHIVE": str(environment_archive),
             "OPENPI_LEROBOT_REPO_ID": repo_id,
         }
     )
@@ -171,10 +182,12 @@ def test_stages_training_inputs_and_copies_outputs_back_on_failure(tmp_path: Pat
         "OPENPI_CHECKPOINT_ROOT": str(local_root / "checkpoints"),
         "OPENPI_DATA_HOME": str(local_root / "openpi_cache"),
         "OPENPI_FSDP_DEVICES": "2",
+        "OPENPI_VENV": str(local_root / "environment" / "pi05-openpi"),
         "GPU_IDS": "0,1",
     }
     assert (local_root / "lerobot" / repo_id / "data.parquet").read_text() == "dataset"
     assert (local_root / "base" / "pi05_base" / "params" / "weights").read_text() == "weights"
+    assert (local_root / "environment" / "pi05-openpi" / "bin" / "python").read_text() == "python"
     assert (train_root / "checkpoints" / "fake-run" / "step.txt").read_text() == "checkpoint\n"
     assert "fake training failure" in (
         train_root / "logs" / "train_restaurant_franka.log"
@@ -188,3 +201,11 @@ def test_has_no_hardware_model_branch_or_sleep() -> None:
     assert "sleep" not in contents
     assert "RTX" not in contents
     assert "H100" not in contents
+
+
+def test_training_uses_staged_python_without_uv_sync() -> None:
+    contents = TRAIN_SCRIPT.read_text()
+
+    assert '"${openpi_venv}/bin/python"' in contents
+    assert "uv_bin" not in contents
+    assert "uv run" not in contents

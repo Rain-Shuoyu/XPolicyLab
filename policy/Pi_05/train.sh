@@ -23,7 +23,6 @@ lerobot_repo_id="${OPENPI_LEROBOT_REPO_ID:-${bench_name}-${ckpt_name}-${env_cfg_
 gpu_count=$(awk -F',' '{print NF}' <<<"${gpu_id}")
 fsdp_devices="${OPENPI_FSDP_DEVICES:-$(( gpu_count < 2 ? 1 : 2 ))}"
 openpi_venv="${OPENPI_VENV:-/mnt/afs/L202500576/venvs/pi05-openpi}"
-uv_bin="${OPENPI_UV_BIN:-/mnt/afs/L202500576/bin/uv}"
 
 mkdir -p "${ckpt_dir}"
 export CUDA_VISIBLE_DEVICES="${gpu_id}"
@@ -44,8 +43,7 @@ echo "[Pi_05] checkpoint_dir=${ckpt_dir}"
 
 cd "${POLICY_DIR}/openpi/"
 XLA_PYTHON_CLIENT_MEM_FRACTION="${XLA_PYTHON_CLIENT_MEM_FRACTION:-0.9}" \
-  VIRTUAL_ENV="${openpi_venv}" "${uv_bin}" run --active --frozen --group lerobot \
-    scripts/train.py "${train_config_name}" \
+  VIRTUAL_ENV="${openpi_venv}" "${openpi_venv}/bin/python" scripts/train.py "${train_config_name}" \
     --exp-name="${ckpt_setting}" \
     --data.repo-id="${lerobot_repo_id}" \
     --fsdp-devices="${fsdp_devices}" \

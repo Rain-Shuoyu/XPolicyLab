@@ -36,9 +36,12 @@ PERSISTENT_LOG_ROOT="${OPENPI_LOG_ROOT:-${TRAIN_ROOT}/logs}"
 PERSISTENT_CHECKPOINT_ROOT="${OPENPI_CHECKPOINT_ROOT:-${TRAIN_ROOT}/checkpoints}"
 PERSISTENT_LEROBOT_HOME="${HF_LEROBOT_HOME:-${SHARED_ROOT}/datasets/lerobot}"
 BASE_MODEL_SOURCE="${OPENPI_BASE_MODEL_SOURCE:-${SHARED_ROOT}/openpi-cache/huggingface/robotgeneralist-openpi_checkpoint_mirrors2/pi05_base}"
+ENV_ARCHIVE="${OPENPI_ENV_ARCHIVE:-${SHARED_ROOT}/environments/pi05-openpi.tar}"
 LOCAL_ROOT="${OPENPI_NODE_LOCAL_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/pi05-restaurant-franka.XXXXXX")}"
 LOCAL_LEROBOT_HOME="${LOCAL_ROOT}/lerobot"
 LOCAL_BASE_MODEL="${LOCAL_ROOT}/base/pi05_base"
+LOCAL_ENVIRONMENT_ROOT="${LOCAL_ROOT}/environment"
+LOCAL_VENV="${LOCAL_ENVIRONMENT_ROOT}/pi05-openpi"
 LOCAL_CHECKPOINT_ROOT="${LOCAL_ROOT}/checkpoints"
 LOCAL_LOG_ROOT="${LOCAL_ROOT}/logs"
 LOCAL_LOG="${LOCAL_LOG_ROOT}/train_restaurant_franka.log"
@@ -47,12 +50,10 @@ export OPENPI_LEROBOT_REPO_ID="${OPENPI_LEROBOT_REPO_ID:-openskillbench/restaura
 export OPENPI_ASSETS_ROOT="${OPENPI_ASSETS_ROOT:-${TRAIN_ROOT}/assets}"
 export OPENPI_TRAIN_CONFIG_NAME=pi05_restaurant_franka_full_finetune
 export OPENPI_FSDP_DEVICES="${GPU_COUNT}"
-export OPENPI_VENV="${OPENPI_VENV:-${SHARED_ROOT}/venvs/pi05-openpi}"
-export OPENPI_UV_BIN="${OPENPI_UV_BIN:-${SHARED_ROOT}/bin/uv}"
-
 mkdir -p \
   "$(dirname "${LOCAL_LEROBOT_HOME}/${OPENPI_LEROBOT_REPO_ID}")" \
   "${LOCAL_BASE_MODEL}" \
+  "${LOCAL_ENVIRONMENT_ROOT}" \
   "${LOCAL_CHECKPOINT_ROOT}" \
   "${LOCAL_LOG_ROOT}"
 
@@ -82,12 +83,15 @@ rsync -a \
   "${LOCAL_LEROBOT_HOME}/${OPENPI_LEROBOT_REPO_ID}/"
 echo "[Pi_05] stage-in base_model=${BASE_MODEL_SOURCE}"
 rsync -a "${BASE_MODEL_SOURCE}/" "${LOCAL_BASE_MODEL}/"
+echo "[Pi_05] stage-in environment=${ENV_ARCHIVE}"
+tar -xf "${ENV_ARCHIVE}" -C "${LOCAL_ENVIRONMENT_ROOT}"
 
 export HF_LEROBOT_HOME="${LOCAL_LEROBOT_HOME}"
 export OPENPI_BASE_PARAMS="${LOCAL_BASE_MODEL}/params"
 export OPENPI_DATA_HOME="${LOCAL_ROOT}/openpi_cache"
 export OPENPI_CHECKPOINT_ROOT="${LOCAL_CHECKPOINT_ROOT}"
 export OPENPI_LOCAL_CACHE_ROOT="${LOCAL_ROOT}/cache"
+export OPENPI_VENV="${LOCAL_VENV}"
 export WANDB_DIR="${WANDB_DIR:-${LOCAL_LOG_ROOT}/wandb}"
 
 echo "[Pi_05] local_root=${LOCAL_ROOT}"
