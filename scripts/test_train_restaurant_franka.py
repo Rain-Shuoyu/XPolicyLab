@@ -1,7 +1,9 @@
 from pathlib import Path
 import os
+import re
 import subprocess
 import tarfile
+import tomllib
 
 import pytest
 
@@ -13,6 +15,7 @@ SCRIPT = (
     / "train_restaurant_franka.sh"
 )
 TRAIN_SCRIPT = SCRIPT.with_name("train.sh")
+OPENPI_PROJECT = SCRIPT.parent / "openpi"
 
 
 def _write_executable(path: Path, contents: str) -> None:
@@ -209,3 +212,17 @@ def test_training_uses_staged_python_without_uv_sync() -> None:
     assert '"${openpi_venv}/bin/python"' in contents
     assert "uv_bin" not in contents
     assert "uv run" not in contents
+
+
+def test_openpi_uses_only_headless_opencv() -> None:
+    pyproject = tomllib.loads((OPENPI_PROJECT / "pyproject.toml").read_text())
+    dependencies = pyproject["project"]["dependencies"]
+    assert any(item.startswith("opencv-python-headless") for item in dependencies)
+    assert not any(
+        re.match(r"^opencv-python(?:[<>=!~]|$)", item) for item in dependencies
+    )
+
+    lock = tomllib.loads((OPENPI_PROJECT / "uv.lock").read_text())
+    package_names = [package["name"] for package in lock["package"]]
+    assert "opencv-python-headless" in package_names
+    assert "opencv-python" not in package_names
