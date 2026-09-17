@@ -53,6 +53,7 @@ done
   printf 'OPENPI_FSDP_DEVICES=%s\n' "$OPENPI_FSDP_DEVICES"
   printf 'OPENPI_TRAIN_CONFIG_NAME=%s\n' "$OPENPI_TRAIN_CONFIG_NAME"
   printf 'OPENPI_VENV=%s\n' "$OPENPI_VENV"
+  printf 'PYTHONDONTWRITEBYTECODE=%s\n' "$PYTHONDONTWRITEBYTECODE"
   printf 'WANDB_MODE=%s\n' "$WANDB_MODE"
   printf 'GPU_IDS=%s\n' "$last_arg"
 } > "$CAPTURE_FILE"
@@ -198,6 +199,7 @@ def test_stages_training_inputs_and_copies_outputs_back_on_failure(tmp_path: Pat
         "OPENPI_FSDP_DEVICES": "2",
         "OPENPI_TRAIN_CONFIG_NAME": "pi05_restaurant_franka_full_finetune",
         "OPENPI_VENV": str(Path(env["OPENPI_SHARED_ROOT"]) / "venvs" / "pi05-openpi"),
+        "PYTHONDONTWRITEBYTECODE": "1",
         "WANDB_MODE": "offline",
         "GPU_IDS": "0,1",
     }

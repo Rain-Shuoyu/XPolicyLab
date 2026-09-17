@@ -95,6 +95,7 @@ export OPENPI_LOCAL_CACHE_ROOT="${LOCAL_ROOT}/cache"
 export OPENPI_VENV="${PERSISTENT_VENV}"
 export WANDB_DIR="${WANDB_DIR:-${LOCAL_LOG_ROOT}/wandb}"
 export WANDB_MODE="${WANDB_MODE:-offline}"
+export PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 
 echo "[Pi_05] local_root=${LOCAL_ROOT}"
 echo "[Pi_05] reusable_environment=${OPENPI_VENV}"
