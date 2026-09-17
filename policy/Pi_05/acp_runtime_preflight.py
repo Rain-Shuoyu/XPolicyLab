@@ -7,6 +7,7 @@ import argparse
 import importlib
 from importlib import metadata
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 
@@ -49,6 +50,18 @@ def validate_gpu_count(expected: int, nvidia_smi_output: str) -> None:
         raise RuntimeError(f"expected {expected} GPUs, found {visible}")
 
 
+def validate_ptxas_version(output: str) -> None:
+    match = re.search(r"release (\d+)\.(\d+)", output)
+    if match is None:
+        raise RuntimeError("could not determine ptxas version")
+    version = tuple(int(part) for part in match.groups())
+    if version < (12, 8):
+        raise RuntimeError(
+            f"ptxas {version[0]}.{version[1]} is too old for RTX 5090; "
+            "CUDA 12.8 or newer is required"
+        )
+
+
 def validate_writable_directories(paths: list[Path]) -> None:
     for path in paths:
         path.mkdir(parents=True, exist_ok=True)
@@ -62,6 +75,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--base-params", type=Path, required=True)
     parser.add_argument("--tokenizer", type=Path, required=True)
+    parser.add_argument("--ptxas", type=Path, required=True)
     parser.add_argument("--assets-root", type=Path, required=True)
     parser.add_argument("--log-root", type=Path, required=True)
     parser.add_argument("--checkpoint-root", type=Path, required=True)
@@ -73,7 +87,16 @@ def main() -> None:
     validate_opencv_distributions(installed_distribution_names())
     for module_name in REQUIRED_IMPORTS:
         importlib.import_module(module_name)
-    validate_required_paths([args.dataset, args.base_params, args.tokenizer])
+    validate_required_paths([args.dataset, args.base_params, args.tokenizer, args.ptxas])
+    if not args.ptxas.is_file() or not args.ptxas.stat().st_mode & 0o111:
+        raise RuntimeError(f"ptxas is not executable: {args.ptxas}")
+    ptxas_result = subprocess.run(
+        [str(args.ptxas), "--version"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    validate_ptxas_version(ptxas_result.stdout + ptxas_result.stderr)
     validate_writable_directories(
         [args.assets_root, args.log_root, args.checkpoint_root]
     )

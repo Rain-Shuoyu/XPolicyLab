@@ -38,6 +38,7 @@ PERSISTENT_LEROBOT_HOME="${HF_LEROBOT_HOME:-${SHARED_ROOT}/datasets/lerobot}"
 BASE_MODEL_SOURCE="${OPENPI_BASE_MODEL_SOURCE:-${SHARED_ROOT}/openpi-cache/huggingface/robotgeneralist-openpi_checkpoint_mirrors2/pi05_base}"
 PERSISTENT_VENV="${OPENPI_VENV:-${SHARED_ROOT}/venvs/pi05-openpi}"
 PERSISTENT_OPENPI_DATA_HOME="${OPENPI_DATA_HOME:-${TRAIN_ROOT}/openpi_cache}"
+PTXAS="${PERSISTENT_VENV}/lib/python3.11/site-packages/nvidia/cuda_nvcc/bin/ptxas"
 LOCAL_ROOT="${OPENPI_NODE_LOCAL_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/pi05-restaurant-franka.XXXXXX")}"
 LOCAL_LEROBOT_HOME="${LOCAL_ROOT}/lerobot"
 LOCAL_BASE_MODEL="${LOCAL_ROOT}/base/pi05_base"
@@ -59,6 +60,11 @@ if [[ ! -x "${PERSISTENT_VENV}/bin/python" ]]; then
   echo "Reusable OpenPI environment is missing: ${PERSISTENT_VENV}/bin/python" >&2
   exit 2
 fi
+if [[ ! -x "${PTXAS}" ]]; then
+  echo "CUDA 12.9 ptxas is missing from the reusable environment: ${PTXAS}" >&2
+  exit 2
+fi
+export PATH="$(dirname "${PTXAS}"):${PATH}"
 
 stage_out() {
   local train_status=$?
@@ -104,6 +110,7 @@ echo "[Pi_05] reusable_environment=${OPENPI_VENV}"
   --dataset "${HF_LEROBOT_HOME}/${OPENPI_LEROBOT_REPO_ID}" \
   --base-params "${OPENPI_BASE_PARAMS}" \
   --tokenizer "${OPENPI_DATA_HOME}/big_vision/paligemma_tokenizer.model" \
+  --ptxas "${PTXAS}" \
   --assets-root "${OPENPI_ASSETS_ROOT}" \
   --log-root "${LOCAL_LOG_ROOT}" \
   --checkpoint-root "${LOCAL_CHECKPOINT_ROOT}"

@@ -53,6 +53,7 @@ done
   printf 'OPENPI_FSDP_DEVICES=%s\n' "$OPENPI_FSDP_DEVICES"
   printf 'OPENPI_TRAIN_CONFIG_NAME=%s\n' "$OPENPI_TRAIN_CONFIG_NAME"
   printf 'OPENPI_VENV=%s\n' "$OPENPI_VENV"
+  printf 'PTXAS=%s\n' "$(command -v ptxas)"
   printf 'PYTHONDONTWRITEBYTECODE=%s\n' "$PYTHONDONTWRITEBYTECODE"
   printf 'WANDB_MODE=%s\n' "$WANDB_MODE"
   printf 'GPU_IDS=%s\n' "$last_arg"
@@ -81,8 +82,20 @@ exit "$FAKE_TRAIN_STATUS"
         """#!/bin/sh
 printf '%s\n' "$*" > "$PREFLIGHT_CAPTURE"
 exit "$FAKE_PREFLIGHT_STATUS"
-""",
+        """,
     )
+    ptxas = (
+        environment
+        / "lib"
+        / "python3.11"
+        / "site-packages"
+        / "nvidia"
+        / "cuda_nvcc"
+        / "bin"
+        / "ptxas"
+    )
+    ptxas.parent.mkdir(parents=True)
+    _write_executable(ptxas, "#!/bin/sh\nprintf 'Cuda compilation tools, release 12.9'\n")
 
     train_root = shared_root / "training" / "pi05_restaurant"
     tokenizer = train_root / "openpi_cache" / "big_vision" / "paligemma_tokenizer.model"
@@ -199,6 +212,18 @@ def test_stages_training_inputs_and_copies_outputs_back_on_failure(tmp_path: Pat
         "OPENPI_FSDP_DEVICES": "2",
         "OPENPI_TRAIN_CONFIG_NAME": "pi05_restaurant_franka_full_finetune",
         "OPENPI_VENV": str(Path(env["OPENPI_SHARED_ROOT"]) / "venvs" / "pi05-openpi"),
+        "PTXAS": str(
+            Path(env["OPENPI_SHARED_ROOT"])
+            / "venvs"
+            / "pi05-openpi"
+            / "lib"
+            / "python3.11"
+            / "site-packages"
+            / "nvidia"
+            / "cuda_nvcc"
+            / "bin"
+            / "ptxas"
+        ),
         "PYTHONDONTWRITEBYTECODE": "1",
         "WANDB_MODE": "offline",
         "GPU_IDS": "0,1",
@@ -297,6 +322,18 @@ def test_preflight_rejects_insufficient_gpu_count() -> None:
 
     with pytest.raises(RuntimeError, match="expected 8 GPUs, found 1"):
         preflight.validate_gpu_count(8, "0\n")
+
+
+def test_preflight_requires_modern_ptxas() -> None:
+    preflight = _load_preflight()
+
+    preflight.validate_ptxas_version(
+        "Cuda compilation tools, release 12.9, V12.9.41"
+    )
+    with pytest.raises(RuntimeError, match="too old for RTX 5090"):
+        preflight.validate_ptxas_version(
+            "Cuda compilation tools, release 12.4, V12.4.131"
+        )
 
 
 def test_openpi_uses_only_headless_opencv() -> None:
