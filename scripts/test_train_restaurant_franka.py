@@ -51,6 +51,7 @@ done
   printf 'OPENPI_CHECKPOINT_ROOT=%s\n' "$OPENPI_CHECKPOINT_ROOT"
   printf 'OPENPI_DATA_HOME=%s\n' "$OPENPI_DATA_HOME"
   printf 'OPENPI_FSDP_DEVICES=%s\n' "$OPENPI_FSDP_DEVICES"
+  printf 'OPENPI_TRAIN_CONFIG_NAME=%s\n' "$OPENPI_TRAIN_CONFIG_NAME"
   printf 'OPENPI_VENV=%s\n' "$OPENPI_VENV"
   printf 'WANDB_MODE=%s\n' "$WANDB_MODE"
   printf 'GPU_IDS=%s\n' "$last_arg"
@@ -195,6 +196,7 @@ def test_stages_training_inputs_and_copies_outputs_back_on_failure(tmp_path: Pat
         "OPENPI_CHECKPOINT_ROOT": str(local_root / "checkpoints"),
         "OPENPI_DATA_HOME": str(train_root / "openpi_cache"),
         "OPENPI_FSDP_DEVICES": "2",
+        "OPENPI_TRAIN_CONFIG_NAME": "pi05_restaurant_franka_full_finetune",
         "OPENPI_VENV": str(Path(env["OPENPI_SHARED_ROOT"]) / "venvs" / "pi05-openpi"),
         "WANDB_MODE": "offline",
         "GPU_IDS": "0,1",
@@ -241,6 +243,25 @@ def test_preflight_failure_prevents_training(tmp_path: Path) -> None:
     assert result.returncode == 9
     assert Path(env["PREFLIGHT_CAPTURE"]).exists()
     assert not Path(env["CAPTURE_FILE"]).exists()
+
+
+def test_allows_smoke_training_config_override(tmp_path: Path) -> None:
+    env, _, _, _ = _prepare_environment(tmp_path, visible_gpu_count=1)
+    env["OPENPI_TRAIN_CONFIG_NAME"] = "pi05_restaurant_franka_lora_smoke"
+
+    result = subprocess.run(
+        ["/bin/bash", str(SCRIPT), "1"],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    captured = dict(
+        line.split("=", 1)
+        for line in Path(env["CAPTURE_FILE"]).read_text().splitlines()
+    )
+    assert captured["OPENPI_TRAIN_CONFIG_NAME"] == "pi05_restaurant_franka_lora_smoke"
 
 
 def _load_preflight():
