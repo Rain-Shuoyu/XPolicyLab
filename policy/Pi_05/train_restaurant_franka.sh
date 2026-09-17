@@ -74,10 +74,10 @@ stage_out() {
   set +e
   echo "[Pi_05] stage-out checkpoints=${PERSISTENT_CHECKPOINT_ROOT} logs=${PERSISTENT_LOG_ROOT}"
   mkdir -p "${PERSISTENT_CHECKPOINT_ROOT}" "${PERSISTENT_LOG_ROOT}"
-  rsync -a "${LOCAL_CHECKPOINT_ROOT}/" "${PERSISTENT_CHECKPOINT_ROOT}/"
+  rsync -a --no-owner --no-group "${LOCAL_CHECKPOINT_ROOT}/" "${PERSISTENT_CHECKPOINT_ROOT}/"
   checkpoint_status=$?
   echo "[Pi_05] train_status=${train_status} checkpoint_stage_out_status=${checkpoint_status}"
-  rsync -a "${LOCAL_LOG_ROOT}/" "${PERSISTENT_LOG_ROOT}/"
+  rsync -a --no-owner --no-group "${LOCAL_LOG_ROOT}/" "${PERSISTENT_LOG_ROOT}/"
   log_status=$?
   if [[ ${checkpoint_status} -ne 0 || ${log_status} -ne 0 ]]; then
     exit 1

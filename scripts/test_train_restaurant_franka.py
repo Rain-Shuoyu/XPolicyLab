@@ -237,6 +237,13 @@ def test_stages_training_inputs_and_copies_outputs_back_on_failure(tmp_path: Pat
     assert "fake training failure" in result.stdout
 
 
+def test_stage_out_does_not_preserve_owner_or_group() -> None:
+    contents = SCRIPT.read_text()
+    stage_out_body = contents.split("stage_out() {", 1)[1].split("trap stage_out EXIT", 1)[0]
+
+    assert stage_out_body.count("rsync -a --no-owner --no-group") == 2
+
+
 def test_has_no_hardware_model_branch_or_sleep() -> None:
     contents = SCRIPT.read_text()
 
