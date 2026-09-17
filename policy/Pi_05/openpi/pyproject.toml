@@ -65,6 +65,11 @@ override-dependencies = [
     "tensorstore==0.1.74",
 ]
 
+[[tool.uv.index]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = true
+
 [tool.uv.sources]
 openpi-client = { workspace = true }
 dlimp = { git = "https://github.com/kvablack/dlimp", rev = "ad72ce3a9b414db2185bc0b38461d4101a65477a" }

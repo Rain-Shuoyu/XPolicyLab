@@ -1,8 +1,8 @@
 from pathlib import Path
+import importlib.util
 import os
 import re
 import subprocess
-import tarfile
 import tomllib
 
 import pytest
@@ -15,6 +15,7 @@ SCRIPT = (
     / "train_restaurant_franka.sh"
 )
 TRAIN_SCRIPT = SCRIPT.with_name("train.sh")
+PREFLIGHT_SCRIPT = SCRIPT.with_name("acp_runtime_preflight.py")
 OPENPI_PROJECT = SCRIPT.parent / "openpi"
 
 
@@ -28,6 +29,7 @@ def _prepare_environment(
     visible_gpu_count: int,
     *,
     train_status: int = 0,
+    preflight_status: int = 0,
 ) -> tuple[dict[str, str], Path, Path, str]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -50,6 +52,7 @@ done
   printf 'OPENPI_DATA_HOME=%s\n' "$OPENPI_DATA_HOME"
   printf 'OPENPI_FSDP_DEVICES=%s\n' "$OPENPI_FSDP_DEVICES"
   printf 'OPENPI_VENV=%s\n' "$OPENPI_VENV"
+  printf 'WANDB_MODE=%s\n' "$WANDB_MODE"
   printf 'GPU_IDS=%s\n' "$last_arg"
 } > "$CAPTURE_FILE"
 if [ "$FAKE_TRAIN_STATUS" -ne 0 ]; then
@@ -69,28 +72,35 @@ exit "$FAKE_TRAIN_STATUS"
     base_model = shared_root / "openpi-cache" / "pi05_base"
     (base_model / "params").mkdir(parents=True)
     (base_model / "params" / "weights").write_text("weights")
-    environment = tmp_path / "environment"
+    environment = shared_root / "venvs" / "pi05-openpi"
     (environment / "bin").mkdir(parents=True)
-    (environment / "bin" / "python").write_text("python")
-    environment_archive = shared_root / "environments" / "pi05-openpi.tar"
-    environment_archive.parent.mkdir(parents=True)
-    with tarfile.open(environment_archive, "w") as archive:
-        archive.add(environment, arcname="pi05-openpi")
+    _write_executable(
+        environment / "bin" / "python",
+        """#!/bin/sh
+printf '%s\n' "$*" > "$PREFLIGHT_CAPTURE"
+exit "$FAKE_PREFLIGHT_STATUS"
+""",
+    )
 
     train_root = shared_root / "training" / "pi05_restaurant"
+    tokenizer = train_root / "openpi_cache" / "big_vision" / "paligemma_tokenizer.model"
+    tokenizer.parent.mkdir(parents=True)
+    tokenizer.write_text("tokenizer")
     local_root = tmp_path / "node-local"
     capture = tmp_path / "training-env.txt"
+    preflight_capture = tmp_path / "preflight-args.txt"
     env = os.environ.copy()
     env.update(
         {
             "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
             "CAPTURE_FILE": str(capture),
+            "PREFLIGHT_CAPTURE": str(preflight_capture),
             "FAKE_TRAIN_STATUS": str(train_status),
+            "FAKE_PREFLIGHT_STATUS": str(preflight_status),
             "OPENPI_SHARED_ROOT": str(shared_root),
             "OPENPI_TRAIN_ROOT": str(train_root),
             "OPENPI_NODE_LOCAL_ROOT": str(local_root),
             "OPENPI_BASE_MODEL_SOURCE": str(base_model),
-            "OPENPI_ENV_ARCHIVE": str(environment_archive),
             "OPENPI_LEROBOT_REPO_ID": repo_id,
         }
     )
@@ -183,14 +193,14 @@ def test_stages_training_inputs_and_copies_outputs_back_on_failure(tmp_path: Pat
         "HF_LEROBOT_HOME": str(local_root / "lerobot"),
         "OPENPI_BASE_PARAMS": str(local_root / "base" / "pi05_base" / "params"),
         "OPENPI_CHECKPOINT_ROOT": str(local_root / "checkpoints"),
-        "OPENPI_DATA_HOME": str(local_root / "openpi_cache"),
+        "OPENPI_DATA_HOME": str(train_root / "openpi_cache"),
         "OPENPI_FSDP_DEVICES": "2",
-        "OPENPI_VENV": str(local_root / "environment" / "pi05-openpi"),
+        "OPENPI_VENV": str(Path(env["OPENPI_SHARED_ROOT"]) / "venvs" / "pi05-openpi"),
+        "WANDB_MODE": "offline",
         "GPU_IDS": "0,1",
     }
     assert (local_root / "lerobot" / repo_id / "data.parquet").read_text() == "dataset"
     assert (local_root / "base" / "pi05_base" / "params" / "weights").read_text() == "weights"
-    assert (local_root / "environment" / "pi05-openpi" / "bin" / "python").read_text() == "python"
     assert (train_root / "checkpoints" / "fake-run" / "step.txt").read_text() == "checkpoint\n"
     assert "fake training failure" in (
         train_root / "logs" / "train_restaurant_franka.log"
@@ -214,6 +224,58 @@ def test_training_uses_staged_python_without_uv_sync() -> None:
     assert "uv run" not in contents
 
 
+def test_preflight_failure_prevents_training(tmp_path: Path) -> None:
+    env, _, _, _ = _prepare_environment(
+        tmp_path,
+        visible_gpu_count=8,
+        preflight_status=9,
+    )
+
+    result = subprocess.run(
+        ["/bin/bash", str(SCRIPT), "8"],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 9
+    assert Path(env["PREFLIGHT_CAPTURE"]).exists()
+    assert not Path(env["CAPTURE_FILE"]).exists()
+
+
+def _load_preflight():
+    spec = importlib.util.spec_from_file_location("acp_runtime_preflight", PREFLIGHT_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_preflight_rejects_gui_opencv_distribution() -> None:
+    preflight = _load_preflight()
+
+    preflight.validate_opencv_distributions({"opencv-python-headless"})
+    with pytest.raises(RuntimeError, match="opencv-python"):
+        preflight.validate_opencv_distributions(
+            {"opencv-python", "opencv-python-headless"}
+        )
+
+
+def test_preflight_rejects_missing_required_path(tmp_path: Path) -> None:
+    preflight = _load_preflight()
+    missing = tmp_path / "missing"
+
+    with pytest.raises(RuntimeError, match=str(missing)):
+        preflight.validate_required_paths([missing])
+
+
+def test_preflight_rejects_insufficient_gpu_count() -> None:
+    preflight = _load_preflight()
+
+    with pytest.raises(RuntimeError, match="expected 8 GPUs, found 1"):
+        preflight.validate_gpu_count(8, "0\n")
+
+
 def test_openpi_uses_only_headless_opencv() -> None:
     pyproject = tomllib.loads((OPENPI_PROJECT / "pyproject.toml").read_text())
     dependencies = pyproject["project"]["dependencies"]
@@ -226,3 +288,15 @@ def test_openpi_uses_only_headless_opencv() -> None:
     package_names = [package["name"] for package in lock["package"]]
     assert "opencv-python-headless" in package_names
     assert "opencv-python" not in package_names
+
+
+def test_openpi_uses_aliyun_as_default_package_index() -> None:
+    pyproject = tomllib.loads((OPENPI_PROJECT / "pyproject.toml").read_text())
+
+    assert pyproject["tool"]["uv"]["index"] == [
+        {
+            "name": "aliyun",
+            "url": "https://mirrors.aliyun.com/pypi/simple/",
+            "default": True,
+        }
+    ]

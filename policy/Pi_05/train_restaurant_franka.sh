@@ -36,12 +36,11 @@ PERSISTENT_LOG_ROOT="${OPENPI_LOG_ROOT:-${TRAIN_ROOT}/logs}"
 PERSISTENT_CHECKPOINT_ROOT="${OPENPI_CHECKPOINT_ROOT:-${TRAIN_ROOT}/checkpoints}"
 PERSISTENT_LEROBOT_HOME="${HF_LEROBOT_HOME:-${SHARED_ROOT}/datasets/lerobot}"
 BASE_MODEL_SOURCE="${OPENPI_BASE_MODEL_SOURCE:-${SHARED_ROOT}/openpi-cache/huggingface/robotgeneralist-openpi_checkpoint_mirrors2/pi05_base}"
-ENV_ARCHIVE="${OPENPI_ENV_ARCHIVE:-${SHARED_ROOT}/environments/pi05-openpi.tar}"
+PERSISTENT_VENV="${OPENPI_VENV:-${SHARED_ROOT}/venvs/pi05-openpi}"
+PERSISTENT_OPENPI_DATA_HOME="${OPENPI_DATA_HOME:-${TRAIN_ROOT}/openpi_cache}"
 LOCAL_ROOT="${OPENPI_NODE_LOCAL_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/pi05-restaurant-franka.XXXXXX")}"
 LOCAL_LEROBOT_HOME="${LOCAL_ROOT}/lerobot"
 LOCAL_BASE_MODEL="${LOCAL_ROOT}/base/pi05_base"
-LOCAL_ENVIRONMENT_ROOT="${LOCAL_ROOT}/environment"
-LOCAL_VENV="${LOCAL_ENVIRONMENT_ROOT}/pi05-openpi"
 LOCAL_CHECKPOINT_ROOT="${LOCAL_ROOT}/checkpoints"
 LOCAL_LOG_ROOT="${LOCAL_ROOT}/logs"
 LOCAL_LOG="${LOCAL_LOG_ROOT}/train_restaurant_franka.log"
@@ -53,9 +52,13 @@ export OPENPI_FSDP_DEVICES="${GPU_COUNT}"
 mkdir -p \
   "$(dirname "${LOCAL_LEROBOT_HOME}/${OPENPI_LEROBOT_REPO_ID}")" \
   "${LOCAL_BASE_MODEL}" \
-  "${LOCAL_ENVIRONMENT_ROOT}" \
   "${LOCAL_CHECKPOINT_ROOT}" \
   "${LOCAL_LOG_ROOT}"
+
+if [[ ! -x "${PERSISTENT_VENV}/bin/python" ]]; then
+  echo "Reusable OpenPI environment is missing: ${PERSISTENT_VENV}/bin/python" >&2
+  exit 2
+fi
 
 stage_out() {
   local train_status=$?
@@ -83,18 +86,26 @@ rsync -a \
   "${LOCAL_LEROBOT_HOME}/${OPENPI_LEROBOT_REPO_ID}/"
 echo "[Pi_05] stage-in base_model=${BASE_MODEL_SOURCE}"
 rsync -a "${BASE_MODEL_SOURCE}/" "${LOCAL_BASE_MODEL}/"
-echo "[Pi_05] stage-in environment=${ENV_ARCHIVE}"
-tar -xf "${ENV_ARCHIVE}" -C "${LOCAL_ENVIRONMENT_ROOT}"
 
 export HF_LEROBOT_HOME="${LOCAL_LEROBOT_HOME}"
 export OPENPI_BASE_PARAMS="${LOCAL_BASE_MODEL}/params"
-export OPENPI_DATA_HOME="${LOCAL_ROOT}/openpi_cache"
+export OPENPI_DATA_HOME="${PERSISTENT_OPENPI_DATA_HOME}"
 export OPENPI_CHECKPOINT_ROOT="${LOCAL_CHECKPOINT_ROOT}"
 export OPENPI_LOCAL_CACHE_ROOT="${LOCAL_ROOT}/cache"
-export OPENPI_VENV="${LOCAL_VENV}"
+export OPENPI_VENV="${PERSISTENT_VENV}"
 export WANDB_DIR="${WANDB_DIR:-${LOCAL_LOG_ROOT}/wandb}"
+export WANDB_MODE="${WANDB_MODE:-offline}"
 
 echo "[Pi_05] local_root=${LOCAL_ROOT}"
+echo "[Pi_05] reusable_environment=${OPENPI_VENV}"
+"${OPENPI_VENV}/bin/python" "${POLICY_DIR}/acp_runtime_preflight.py" \
+  --expected-gpus "${GPU_COUNT}" \
+  --dataset "${HF_LEROBOT_HOME}/${OPENPI_LEROBOT_REPO_ID}" \
+  --base-params "${OPENPI_BASE_PARAMS}" \
+  --tokenizer "${OPENPI_DATA_HOME}/big_vision/paligemma_tokenizer.model" \
+  --assets-root "${OPENPI_ASSETS_ROOT}" \
+  --log-root "${LOCAL_LOG_ROOT}" \
+  --checkpoint-root "${LOCAL_CHECKPOINT_ROOT}"
 set +e
 bash "${POLICY_DIR}/train.sh" restaurant_pass_counter franka_dense50 franka joint 0 "${GPU_IDS}" \
   2>&1 | tee -a "${LOCAL_LOG}"
