@@ -38,7 +38,7 @@ _WUJI_ASSETS_DIR = pathlib.Path(__file__).resolve().parents[3] / "assets" / "Wuj
 
 _RESTAURANT_REPO_ID = os.environ.get(
     "OPENPI_LEROBOT_REPO_ID",
-    "openskillbench/restaurant_pass_counter_franka_dense55_recovery5",
+    "openskillbench/restaurant_pass_counter_franka_atomic205_recovery5",
 )
 _RESTAURANT_ASSETS_BASE_DIR = os.environ.get(
     "OPENPI_ASSETS_ROOT",

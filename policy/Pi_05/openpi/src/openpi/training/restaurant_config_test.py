@@ -32,7 +32,7 @@ def test_restaurant_full_config_uses_pi05_base_and_dual_franka_contract() -> Non
     )
     assert (
         data_config.repo_id
-        == "openskillbench/restaurant_pass_counter_franka_dense55_recovery5"
+        == "openskillbench/restaurant_pass_counter_franka_atomic205_recovery5"
     )
     assert data_config.prompt_from_task is True
     assert data_config.use_quantile_norm is True
