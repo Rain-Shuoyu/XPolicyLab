@@ -46,7 +46,7 @@ LOCAL_CHECKPOINT_ROOT="${LOCAL_ROOT}/checkpoints"
 LOCAL_LOG_ROOT="${LOCAL_ROOT}/logs"
 LOCAL_LOG="${LOCAL_LOG_ROOT}/train_restaurant_franka.log"
 
-export OPENPI_LEROBOT_REPO_ID="${OPENPI_LEROBOT_REPO_ID:-openskillbench/restaurant_pass_counter_franka_dense50}"
+export OPENPI_LEROBOT_REPO_ID="${OPENPI_LEROBOT_REPO_ID:-openskillbench/restaurant_pass_counter_franka_dense55_recovery5}"
 export OPENPI_ASSETS_ROOT="${OPENPI_ASSETS_ROOT:-${TRAIN_ROOT}/assets}"
 export OPENPI_TRAIN_CONFIG_NAME=pi05_restaurant_franka_full_finetune
 export OPENPI_FSDP_DEVICES="${GPU_COUNT}"
@@ -96,7 +96,7 @@ export WANDB_DIR="${WANDB_DIR:-${LOCAL_LOG_ROOT}/wandb}"
 
 echo "[Pi_05] local_root=${LOCAL_ROOT}"
 set +e
-bash "${POLICY_DIR}/train.sh" restaurant_pass_counter franka_dense50 franka joint 0 "${GPU_IDS}" \
+bash "${POLICY_DIR}/train.sh" restaurant_pass_counter franka_dense55_recovery5 franka joint 0 "${GPU_IDS}" \
   2>&1 | tee -a "${LOCAL_LOG}"
 train_status=${PIPESTATUS[0]}
 set -e

@@ -7,7 +7,7 @@ TRAIN_ROOT="${OPENPI_TRAIN_ROOT:-${SHARED_ROOT}/training/pi05_restaurant}"
 LOG_ROOT="${OPENPI_LOG_ROOT:-${TRAIN_ROOT}/logs}"
 
 export HF_LEROBOT_HOME="${HF_LEROBOT_HOME:-${SHARED_ROOT}/datasets/lerobot}"
-export OPENPI_LEROBOT_REPO_ID="${OPENPI_LEROBOT_REPO_ID:-openskillbench/restaurant_pass_counter_franka_dense50}"
+export OPENPI_LEROBOT_REPO_ID="${OPENPI_LEROBOT_REPO_ID:-openskillbench/restaurant_pass_counter_franka_dense55_recovery5}"
 export OPENPI_ASSETS_ROOT="${OPENPI_ASSETS_ROOT:-${TRAIN_ROOT}/assets}"
 export OPENPI_DATA_HOME="${OPENPI_DATA_HOME:-${TRAIN_ROOT}/openpi_cache}"
 export OPENPI_BASE_PARAMS="${OPENPI_BASE_PARAMS:-${SHARED_ROOT}/checkpoints/pi05_base/params}"

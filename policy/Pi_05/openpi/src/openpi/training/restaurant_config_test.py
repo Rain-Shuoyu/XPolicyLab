@@ -31,7 +31,8 @@ def test_restaurant_full_config_uses_pi05_base_and_dual_franka_contract() -> Non
         == "gs://openpi-assets/checkpoints/pi05_base/params"
     )
     assert (
-        data_config.repo_id == "openskillbench/restaurant_pass_counter_franka_dense50"
+        data_config.repo_id
+        == "openskillbench/restaurant_pass_counter_franka_dense55_recovery5"
     )
     assert data_config.prompt_from_task is True
     assert data_config.use_quantile_norm is True
