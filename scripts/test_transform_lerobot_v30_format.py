@@ -1,12 +1,18 @@
 from pathlib import Path
 import dataclasses
 import io
+import importlib.util
+import sys
 
 import numpy as np
 import pytest
 from PIL import Image
 
-from scripts import transform_lerobot_v30_format as converter
+_MODULE = Path(__file__).with_name('transform_lerobot_v30_format.py')
+_SPEC = importlib.util.spec_from_file_location('pi05_lerobot_v30_converter_test', _MODULE)
+converter = importlib.util.module_from_spec(_SPEC)
+sys.modules[_SPEC.name] = converter
+_SPEC.loader.exec_module(converter)
 
 
 def test_collects_only_the_explicit_single_target_input_dir(tmp_path: Path) -> None:
