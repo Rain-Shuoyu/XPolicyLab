@@ -16,9 +16,14 @@ gpu_id=$6
 POLICY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # ckpt_setting is the run directory name; pass it verbatim as ckpt_name to eval.sh.
 ckpt_setting="${bench_name}-${ckpt_name}-${env_cfg_type}-${action_type}-${seed}"
+train_config_name="${OPENPI_TRAIN_CONFIG_NAME:-pi05_base_aloha_full_sim_arx-x5_seed_0}"
+case "${train_config_name}" in
+  pi05_restaurant_franka_lora|pi05_restaurant_franka_action_head)
+    ckpt_setting+="-${train_config_name#pi05_restaurant_franka_}"
+    ;;
+esac
 checkpoint_root="${OPENPI_CHECKPOINT_ROOT:-${POLICY_DIR}/checkpoints}"
 ckpt_dir="${checkpoint_root}/${ckpt_setting}"
-train_config_name="${OPENPI_TRAIN_CONFIG_NAME:-pi05_base_aloha_full_sim_arx-x5_seed_0}"
 lerobot_repo_id="${OPENPI_LEROBOT_REPO_ID:-${bench_name}-${ckpt_name}-${env_cfg_type}-${action_type}}"
 gpu_count=$(awk -F',' '{print NF}' <<<"${gpu_id}")
 fsdp_devices="${OPENPI_FSDP_DEVICES:-$(( gpu_count < 2 ? 1 : 2 ))}"
@@ -41,6 +46,13 @@ echo "[Pi_05] fsdp_devices=${fsdp_devices}"
 echo "[Pi_05] local_cache_root=${LOCAL_CACHE_ROOT}"
 echo "[Pi_05] checkpoint_dir=${ckpt_dir}"
 
+run_mode_args=(--overwrite)
+case "${OPENPI_TRAIN_RESUME:-0}" in
+  0) ;;
+  1) run_mode_args=(--resume) ;;
+  *) echo "OPENPI_TRAIN_RESUME must be 0 or 1" >&2; exit 2 ;;
+esac
+
 cd "${POLICY_DIR}/openpi/"
 XLA_PYTHON_CLIENT_MEM_FRACTION="${XLA_PYTHON_CLIENT_MEM_FRACTION:-0.9}" \
   VIRTUAL_ENV="${openpi_venv}" "${openpi_venv}/bin/python" scripts/train.py "${train_config_name}" \
@@ -49,4 +61,4 @@ XLA_PYTHON_CLIENT_MEM_FRACTION="${XLA_PYTHON_CLIENT_MEM_FRACTION:-0.9}" \
     --fsdp-devices="${fsdp_devices}" \
     --checkpoint-dir-override="${ckpt_dir}" \
     --seed="${seed}" \
-    --overwrite
+    "${run_mode_args[@]}"

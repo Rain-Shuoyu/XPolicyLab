@@ -31,6 +31,20 @@ def test_lora_einsum_params_shape():
     assert params_lora1["params"]["lora_b"].shape == (3, 2, 32, 4)
 
 
+def test_lora_starts_at_base_output_and_can_update() -> None:
+    key = jax.random.key(7)
+    x = jnp.ones((2, 8))
+    base = lora.Einsum((8, 4))
+    adapted = lora.Einsum((8, 4), lora_config=lora.LoRAConfig(rank=2, alpha=2.0))
+    base_params = base.init(key, "BD,DF->BF", x)
+    adapted_params = adapted.init(key, "BD,DF->BF", x)
+    assert jnp.any(adapted_params["params"]["lora_a"] != 0)
+    assert jnp.all(adapted_params["params"]["lora_b"] == 0)
+    assert jnp.array_equal(base.apply(base_params, "BD,DF->BF", x), adapted.apply(adapted_params, "BD,DF->BF", x))
+    grads = jax.grad(lambda params: jnp.sum(adapted.apply(params, "BD,DF->BF", x)))(adapted_params)
+    assert jnp.any(grads["params"]["lora_b"] != 0)
+
+
 def test_lora_einsum_same_output():
     shape = (3, 8, 32, 4)  # (3KDH)
     einsum = lora.Einsum(shape)

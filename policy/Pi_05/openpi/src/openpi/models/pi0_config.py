@@ -20,6 +20,11 @@ class Pi0Config(_model.BaseModelConfig):
     dtype: str = "bfloat16"
     paligemma_variant: _gemma.Variant = "gemma_2b"
     action_expert_variant: _gemma.Variant = "gemma_300m"
+    # Used only by the corresponding *_lora Gemma variant. Both attention and FFN use these values.
+    paligemma_lora_rank: int = 16
+    paligemma_lora_alpha: float = 16.0
+    action_expert_lora_rank: int = 32
+    action_expert_lora_alpha: float = 32.0
 
     # Set the model specific defaults.
     action_dim: int = 32
@@ -35,6 +40,10 @@ class Pi0Config(_model.BaseModelConfig):
     pytorch_compile_mode: str | None = "max-autotune"
 
     def __post_init__(self):
+        if self.paligemma_lora_rank <= 0 or self.action_expert_lora_rank <= 0:
+            raise ValueError("LoRA ranks must be positive")
+        if self.paligemma_lora_alpha <= 0 or self.action_expert_lora_alpha <= 0:
+            raise ValueError("LoRA alpha values must be positive")
         if self.max_token_len is None:
             object.__setattr__(self, "max_token_len", 200 if self.pi05 else 48)
         if self.discrete_state_input is None:
@@ -59,6 +68,26 @@ class Pi0Config(_model.BaseModelConfig):
         from openpi.models.pi0 import Pi0
 
         return Pi0(self, rngs=nnx.Rngs(rng))
+
+    def gemma_configs(self) -> tuple[_gemma.Config, _gemma.Config]:
+        """Build the two expert configs with the requested adapter rank and scale."""
+
+        def configured(variant: _gemma.Variant, rank: int, alpha: float) -> _gemma.Config:
+            base = _gemma.get_config(variant)
+            if not base.lora_configs:
+                return base
+            return dataclasses.replace(
+                base,
+                lora_configs={
+                    target: dataclasses.replace(adapter, rank=rank, alpha=alpha)
+                    for target, adapter in base.lora_configs.items()
+                },
+            )
+
+        return (
+            configured(self.paligemma_variant, self.paligemma_lora_rank, self.paligemma_lora_alpha),
+            configured(self.action_expert_variant, self.action_expert_lora_rank, self.action_expert_lora_alpha),
+        )
 
     @override
     def inputs_spec(self, *, batch_size: int = 1) -> tuple[_model.Observation, _model.Actions]:

@@ -25,6 +25,7 @@ import openpi.policies.wuji_policy as wuji_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
+import openpi.training.finetune as finetune
 import openpi.training.misc.polaris_config as polaris_config
 import openpi.training.misc.roboarena_config as roboarena_config
 import openpi.training.optimizer as _optimizer
@@ -666,6 +667,7 @@ _RESTAURANT_LORA_MODEL = pi0_config.Pi0Config(
     paligemma_variant="gemma_2b_lora",
     action_expert_variant="gemma_300m_lora",
 )
+_RESTAURANT_ACTION_MODEL = pi0_config.Pi0Config(pi05=True)
 
 
 def _restaurant_franka_data_config() -> LeRobotAlohaDataConfig:
@@ -846,6 +848,30 @@ _CONFIGS = [
         ),
         batch_size=256,
         num_train_steps=60_000,
+    ),
+    TrainConfig(
+        name="pi05_restaurant_franka_lora",
+        model=_RESTAURANT_LORA_MODEL,
+        freeze_filter=nnx.Not(finetune.lora_trainable_filter()),
+        data=_restaurant_franka_data_config(),
+        assets_base_dir=_RESTAURANT_ASSETS_BASE_DIR,
+        checkpoint_base_dir=_RESTAURANT_CHECKPOINT_BASE_DIR,
+        weight_loader=weight_loaders.CheckpointWeightLoader(_restaurant_base_params_path()),
+        batch_size=32,
+        num_train_steps=60_000,
+        ema_decay=None,
+    ),
+    TrainConfig(
+        name="pi05_restaurant_franka_action_head",
+        model=_RESTAURANT_ACTION_MODEL,
+        freeze_filter=nnx.Not(finetune.action_side_filter()),
+        data=_restaurant_franka_data_config(),
+        assets_base_dir=_RESTAURANT_ASSETS_BASE_DIR,
+        checkpoint_base_dir=_RESTAURANT_CHECKPOINT_BASE_DIR,
+        weight_loader=weight_loaders.CheckpointWeightLoader(_restaurant_base_params_path()),
+        batch_size=32,
+        num_train_steps=60_000,
+        ema_decay=None,
     ),
     TrainConfig(
         name="pi05_restaurant_franka_lora_smoke",

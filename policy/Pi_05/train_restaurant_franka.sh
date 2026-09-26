@@ -36,6 +36,7 @@ PERSISTENT_LOG_ROOT="${OPENPI_LOG_ROOT:-${TRAIN_ROOT}/logs}"
 PERSISTENT_CHECKPOINT_ROOT="${OPENPI_CHECKPOINT_ROOT:-${TRAIN_ROOT}/checkpoints}"
 PERSISTENT_LEROBOT_HOME="${HF_LEROBOT_HOME:-${SHARED_ROOT}/datasets/lerobot}"
 BASE_MODEL_SOURCE="${OPENPI_BASE_MODEL_SOURCE:-${SHARED_ROOT}/openpi-cache/huggingface/robotgeneralist-openpi_checkpoint_mirrors2/pi05_base}"
+INIT_PARAMS_SOURCE="${OPENPI_INIT_PARAMS_SOURCE:-${BASE_MODEL_SOURCE}/params}"
 ENV_ARCHIVE="${OPENPI_ENV_ARCHIVE:-${SHARED_ROOT}/environments/pi05-openpi.tar}"
 LOCAL_ROOT="${OPENPI_NODE_LOCAL_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/pi05-restaurant-franka.XXXXXX")}"
 LOCAL_LEROBOT_HOME="${LOCAL_ROOT}/lerobot"
@@ -48,7 +49,25 @@ LOCAL_LOG="${LOCAL_LOG_ROOT}/train_restaurant_franka.log"
 
 export OPENPI_LEROBOT_REPO_ID="${OPENPI_LEROBOT_REPO_ID:-openskillbench/restaurant_pass_counter_franka_atomic205_recovery5}"
 export OPENPI_ASSETS_ROOT="${OPENPI_ASSETS_ROOT:-${TRAIN_ROOT}/assets}"
-export OPENPI_TRAIN_CONFIG_NAME=pi05_restaurant_franka_full_finetune
+export OPENPI_TRAIN_CONFIG_NAME="${OPENPI_TRAIN_CONFIG_NAME:-pi05_restaurant_franka_full_finetune}"
+case "${OPENPI_TRAIN_CONFIG_NAME}" in
+  pi05_restaurant_franka_full_finetune|pi05_restaurant_franka_lora|pi05_restaurant_franka_action_head) ;;
+  *) echo "Unsupported restaurant train config: ${OPENPI_TRAIN_CONFIG_NAME}" >&2; exit 2 ;;
+esac
+case "${OPENPI_TRAIN_RESUME:-0}" in
+  0|1) ;;
+  *) echo "OPENPI_TRAIN_RESUME must be 0 or 1" >&2; exit 2 ;;
+esac
+ckpt_setting="restaurant_pass_counter-franka_atomic205_recovery5-franka-joint-0"
+case "${OPENPI_TRAIN_CONFIG_NAME}" in
+  pi05_restaurant_franka_lora|pi05_restaurant_franka_action_head)
+    ckpt_setting+="-${OPENPI_TRAIN_CONFIG_NAME#pi05_restaurant_franka_}"
+    ;;
+esac
+if [[ "${OPENPI_TRAIN_RESUME:-0}" == "0" && "${OPENPI_TRAIN_CONFIG_NAME}" != "pi05_restaurant_franka_full_finetune" && -d "${PERSISTENT_CHECKPOINT_ROOT}/${ckpt_setting}" ]]; then
+  echo "Checkpoint already exists; set OPENPI_TRAIN_RESUME=1 or choose another OPENPI_CHECKPOINT_ROOT" >&2
+  exit 2
+fi
 export OPENPI_FSDP_DEVICES="${GPU_COUNT}"
 mkdir -p \
   "$(dirname "${LOCAL_LEROBOT_HOME}/${OPENPI_LEROBOT_REPO_ID}")" \
@@ -81,8 +100,12 @@ echo "[Pi_05] stage-in dataset=${PERSISTENT_LEROBOT_HOME}/${OPENPI_LEROBOT_REPO_
 rsync -a \
   "${PERSISTENT_LEROBOT_HOME}/${OPENPI_LEROBOT_REPO_ID}/" \
   "${LOCAL_LEROBOT_HOME}/${OPENPI_LEROBOT_REPO_ID}/"
-echo "[Pi_05] stage-in base_model=${BASE_MODEL_SOURCE}"
-rsync -a "${BASE_MODEL_SOURCE}/" "${LOCAL_BASE_MODEL}/"
+echo "[Pi_05] stage-in init_params=${INIT_PARAMS_SOURCE}"
+rsync -a "${INIT_PARAMS_SOURCE}/" "${LOCAL_BASE_MODEL}/params/"
+if [[ "${OPENPI_TRAIN_RESUME:-0}" == "1" ]]; then
+  echo "[Pi_05] stage-in resume_checkpoint=${PERSISTENT_CHECKPOINT_ROOT}/${ckpt_setting}"
+  rsync -a "${PERSISTENT_CHECKPOINT_ROOT}/${ckpt_setting}/" "${LOCAL_CHECKPOINT_ROOT}/${ckpt_setting}/"
+fi
 echo "[Pi_05] stage-in environment=${ENV_ARCHIVE}"
 tar -xf "${ENV_ARCHIVE}" -C "${LOCAL_ENVIRONMENT_ROOT}"
 
