@@ -2,7 +2,6 @@ import argparse
 import dataclasses
 import fnmatch
 import random
-import shutil
 import sys
 from pathlib import Path
 from typing import Any, Literal
@@ -21,6 +20,10 @@ from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from XPolicyLab.utils.data_loader import load
 from XPolicyLab.utils.load_file import load_json, load_yaml
 from XPolicyLab.utils.process_data import decode_image_bit
+from XPolicyLab.policy.Pi_05.color_order import (
+    decoded_frames_for_lerobot, is_encoded_image_source,
+    require_new_dataset_path, write_rgb_dataset_contract,
+)
 
 
 DEFAULT_DATASET_NAME = "RoboDojo"
@@ -492,7 +495,7 @@ def _resize_image(image, image_height, image_width):
     )
 
 
-def _decode_images_if_needed(images, image_height, image_width):
+def _decode_images_if_needed(images, image_height, image_width, *, pil_rgb_jpeg_source=False):
 
     frames = np.asarray(decode_image_bit(images))
 
@@ -505,6 +508,11 @@ def _decode_images_if_needed(images, image_height, image_width):
     if frames.dtype != np.uint8:
         frames = frames.astype(np.uint8)
 
+    frames = decoded_frames_for_lerobot(
+        frames, pil_rgb_jpeg_source=pil_rgb_jpeg_source,
+        encoded=is_encoded_image_source(images),
+    )
+
     if frames.shape[1:3] != (image_height, image_width):
         frames = np.stack(
             [_resize_image(frame, image_height, image_width) for frame in frames],
@@ -514,14 +522,16 @@ def _decode_images_if_needed(images, image_height, image_width):
     return frames
 
 
-def _find_camera_array(data, camera_name, image_height, image_width):
+def _find_camera_array(data, camera_name, image_height, image_width, *, pil_rgb_jpeg_source=False):
 
     for keys in CAMERA_CANDIDATES[camera_name]:
 
         value = _get_nested(data, *keys)
 
         if value is not None:
-            return _decode_images_if_needed(value, image_height, image_width)
+            return _decode_images_if_needed(
+                value, image_height, image_width, pil_rgb_jpeg_source=pil_rgb_jpeg_source
+            )
 
     return None
 
@@ -632,8 +642,7 @@ def create_empty_dataset(
 
     dataset_root = Path(HF_LEROBOT_HOME) / repo_id
 
-    if dataset_root.exists():
-        shutil.rmtree(dataset_root)
+    require_new_dataset_path(dataset_root)
 
     return LeRobotDataset.create(
         repo_id=repo_id,
@@ -689,6 +698,7 @@ def convert_one(
     image_width,
     instruction_pool=None,
     episode_index=0,
+    pil_rgb_jpeg_source=False,
 ):
 
     data = load(
@@ -738,6 +748,7 @@ def convert_one(
             camera_name,
             image_height,
             image_width,
+            pil_rgb_jpeg_source=pil_rgb_jpeg_source,
         )
 
         if image_array is not None:
@@ -919,6 +930,10 @@ def main():
         default=None,
         help="Override target image width (use with --image_height).",
     )
+    parser.add_argument(
+        '--pil-rgb-jpeg-source', action='store_true',
+        help='Source JPEGs were encoded from PIL RGB arrays; write true RGB LeRobot video and a color contract.',
+    )
 
     args = parser.parse_args()
     instruction_pool = _load_instruction_pool(args.instruction_file)
@@ -1028,6 +1043,7 @@ def main():
                         image_width,
                         instruction_pool,
                         task_success,
+                        pil_rgb_jpeg_source=args.pil_rgb_jpeg_source,
                     )
 
                     task_success += 1
@@ -1047,6 +1063,9 @@ def main():
     finally:
 
         finalize_dataset(dataset)
+
+    if args.pil_rgb_jpeg_source:
+        write_rgb_dataset_contract(Path(HF_LEROBOT_HOME) / repo_id, source='pil_rgb_jpeg')
 
     print(f"Unified target dims per arm: {target_dims}")
 

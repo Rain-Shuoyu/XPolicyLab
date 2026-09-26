@@ -15,6 +15,7 @@ from openpi.shared import normalize as _normalize
 from openpi.training import config as _config
 
 from XPolicyLab.model_template import ModelTemplate
+from XPolicyLab.policy.Pi_05.color_order import adapt_encoded_observation, resolve_input_color_order
 from XPolicyLab.utils.checkpoint_resolver import candidate_checkpoint_roots
 from XPolicyLab.utils.process_data import (
     get_robot_action_dim_info,
@@ -95,6 +96,7 @@ class Model(ModelTemplate):
         )
         self.observation_window: dict[str, Any] | None = None
         self._latest_env_idx_list: list[int] = [0]
+        self.input_color_order = resolve_input_color_order(model_cfg, _resolve_pi05_model_root(model_cfg))
 
         self.policy = self.get_model(model_cfg=model_cfg)
         self.model = self.policy
@@ -117,7 +119,9 @@ class Model(ModelTemplate):
     def update_obs_batch(self, obs_list):
         self._latest_env_idx_list = [obs.get("env_idx", index) for index, obs in enumerate(obs_list)]
         encoded_obs_list = [
-            encode_obs(obs, self.action_type, self.robot_action_dim_info) for obs in obs_list
+            adapt_encoded_observation(
+                encode_obs(obs, self.action_type, self.robot_action_dim_info), self.input_color_order
+            ) for obs in obs_list
         ]
         self.observation_window = stack_obs(encoded_obs_list)
 

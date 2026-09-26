@@ -1,7 +1,10 @@
 from pathlib import Path
 import dataclasses
+import io
 
+import numpy as np
 import pytest
+from PIL import Image
 
 from scripts import transform_lerobot_v30_format as converter
 
@@ -112,3 +115,20 @@ def test_prepare_validates_task_prompts_from_lerobot_tasks_index() -> None:
 
     assert "metadata.tasks.index" in prepare_script
     assert 'metadata.tasks["task"]' not in prepare_script
+
+
+def test_pi05_pil_rgb_jpeg_conversion_and_already_decoded_rgb():
+    original = np.zeros((8, 8, 3), dtype=np.uint8)
+    original[..., 0], original[..., 2] = 230, 14
+    buffer = io.BytesIO()
+    Image.fromarray(original, mode='RGB').save(buffer, format='JPEG', quality=95)
+    raw = buffer.getvalue()
+    expected = np.asarray(Image.open(io.BytesIO(raw)).convert('RGB'))
+    from_jpeg = converter._decode_images_if_needed(
+        [raw], 8, 8, pil_rgb_jpeg_source=True
+    )
+    from_rgb = converter._decode_images_if_needed(
+        expected[None], 8, 8, pil_rgb_jpeg_source=True
+    )
+    assert np.array_equal(from_jpeg[0], expected)
+    assert np.array_equal(from_rgb[0], expected)
