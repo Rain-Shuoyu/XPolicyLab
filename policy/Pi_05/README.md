@@ -76,7 +76,7 @@ The full config keeps its historical run-directory name; LoRA and action-head ru
 
 If a LoRA or action-head run already exists at the persistent checkpoint path, the restaurant launcher requires `OPENPI_TRAIN_RESUME=1` or a different `OPENPI_CHECKPOINT_ROOT`, protecting the saved optimizer state from an accidental fresh run.
 
-The existing `pi05_restaurant_franka_lora_smoke` remains a one-step diagnostic with its original broader trainable set; use `pi05_restaurant_franka_lora` for experiments. CPU tests validate parameter selection, an optimizer update, full-parameter checkpoint save/restore and strict inference loading. GPU memory, throughput and policy quality remain untested for the new modes.
+The existing `pi05_restaurant_franka_lora_smoke` remains a one-step diagnostic with its original broader trainable set (466,957,072 trainable parameters, including the vision tower); use `pi05_restaurant_franka_lora` for experiments. CPU tests validate parameter selection, optimizer updates, full-parameter checkpoint save/restore and strict inference loading. GPU memory, throughput and policy quality remain untested for the new modes.
 
 These modes do not alter image conversion or policy input color order. Use a dataset and inference input with the matching color-order contract from the runtime integration; a separate official-runtime task owns the RGB/BGR correction. The normalization asset source and the `assets/<repo_id>` checkpoint layout are shared across all three modes.
 
