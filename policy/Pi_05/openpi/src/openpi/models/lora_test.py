@@ -59,6 +59,22 @@ def test_lora_ffn_starts_at_base_output_and_can_update() -> None:
     assert jnp.any(grads["params"]["linear_lora_b"] != 0)
 
 
+def test_lora_ffn_alpha_scales_adapter_contribution() -> None:
+    key = jax.random.key(10)
+    x = jnp.ones((2, 8))
+    unit_scale = lora.FeedForward(features=8, hidden_dim=32, lora_config=lora.LoRAConfig(rank=2, alpha=2.0))
+    half_scale = lora.FeedForward(features=8, hidden_dim=32, lora_config=lora.LoRAConfig(rank=2, alpha=1.0))
+    base = lora.FeedForward(features=8, hidden_dim=32)
+    params = unit_scale.init(key, x)
+    params["params"]["linear_lora_b"] = jnp.ones_like(params["params"]["linear_lora_b"])
+    base_params = {"params": {name: value for name, value in params["params"].items() if "lora" not in name}}
+    base_output = base.apply(base_params, x)
+    unit_delta = unit_scale.apply(params, x) - base_output
+    half_delta = half_scale.apply(params, x) - base_output
+    assert jnp.any(unit_delta != 0)
+    assert jnp.allclose(half_delta, unit_delta / 2)
+
+
 def test_lora_einsum_same_output():
     shape = (3, 8, 32, 4)  # (3KDH)
     einsum = lora.Einsum(shape)
