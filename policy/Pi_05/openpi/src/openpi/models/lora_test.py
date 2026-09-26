@@ -45,6 +45,20 @@ def test_lora_starts_at_base_output_and_can_update() -> None:
     assert jnp.any(grads["params"]["lora_b"] != 0)
 
 
+def test_lora_ffn_starts_at_base_output_and_can_update() -> None:
+    key = jax.random.key(9)
+    x = jnp.ones((2, 8))
+    base = lora.FeedForward(features=8, hidden_dim=32)
+    adapted = lora.FeedForward(features=8, hidden_dim=32, lora_config=lora.LoRAConfig(rank=2, alpha=2.0))
+    base_params = base.init(key, x)
+    adapted_params = adapted.init(key, x)
+    assert jnp.all(adapted_params["params"]["gating_einsum_lora_b"] == 0)
+    assert jnp.all(adapted_params["params"]["linear_lora_b"] == 0)
+    assert jnp.array_equal(base.apply(base_params, x), adapted.apply(adapted_params, x))
+    grads = jax.grad(lambda params: jnp.sum(adapted.apply(params, x)))(adapted_params)
+    assert jnp.any(grads["params"]["linear_lora_b"] != 0)
+
+
 def test_lora_einsum_same_output():
     shape = (3, 8, 32, 4)  # (3KDH)
     einsum = lora.Einsum(shape)
