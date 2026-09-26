@@ -28,6 +28,7 @@ def test_restaurant_modes_select_the_expected_parameter_families() -> None:
     full = config.get_config("pi05_restaurant_franka_full_finetune")
     lora = config.get_config("pi05_restaurant_franka_lora")
     action = config.get_config("pi05_restaurant_franka_action_head")
+    assert all(candidate.weight_loader.strict for candidate in (full, lora, action))
     for candidate in (lora, action):
         assert candidate.data.repo_id == full.data.repo_id
         assert candidate.data.assets == full.data.assets
@@ -85,7 +86,7 @@ def test_checkpoint_loader_rejects_unexpected_adapter_keys(monkeypatch: pytest.M
         lambda *_args, **_kwargs: {"a": np.ones((2,)), "adapter_lora_a": np.ones((2,))},
     )
     with pytest.raises(ValueError, match="unexpected.*adapter_lora_a"):
-        weight_loaders.CheckpointWeightLoader("checkpoint/params").load({"a": np.zeros((2,))})
+        weight_loaders.CheckpointWeightLoader("checkpoint/params", strict=True).load({"a": np.zeros((2,))})
 
 
 def test_action_side_filter_rejects_language_and_vision() -> None:

@@ -57,6 +57,7 @@ def _restaurant_base_params_path() -> str:
         "gs://openpi-assets/checkpoints/pi05_base/params",
     )
 
+
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
 Filter: TypeAlias = nnx.filterlib.Filter
@@ -299,9 +300,7 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
             ],
         )
         if self.use_delta_joint_actions:
-            delta_action_mask = _transforms.make_bool_mask(
-                self.joint_dims[0], -1, self.joint_dims[1], -1
-            )
+            delta_action_mask = _transforms.make_bool_mask(self.joint_dims[0], -1, self.joint_dims[1], -1)
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
                 outputs=[_transforms.AbsoluteActions(delta_action_mask)],
@@ -674,10 +673,7 @@ def _restaurant_franka_data_config() -> LeRobotAlohaDataConfig:
     return LeRobotAlohaDataConfig(
         repo_id=_RESTAURANT_REPO_ID,
         assets=AssetsConfig(
-            assets_dir=str(
-                pathlib.Path(_RESTAURANT_ASSETS_BASE_DIR)
-                / "pi05_restaurant_franka_full_finetune"
-            ),
+            assets_dir=str(pathlib.Path(_RESTAURANT_ASSETS_BASE_DIR) / "pi05_restaurant_franka_full_finetune"),
             asset_id=_RESTAURANT_REPO_ID,
         ),
         joint_dims=(7, 7),
@@ -699,6 +695,7 @@ def _restaurant_franka_data_config() -> LeRobotAlohaDataConfig:
         ),
         base_config=DataConfig(prompt_from_task=True),
     )
+
 
 _CONFIGS = [
     TrainConfig(
@@ -825,9 +822,7 @@ _CONFIGS = [
             # If your dataset uses cam_high instead of stereo_right, set:
             # base_image_key="observation.images.cam_high",
         ),
-        weight_loader=weight_loaders.PartialCheckpointWeightLoader(
-            "gs://openpi-assets/checkpoints/pi05_base/params"
-        ),
+        weight_loader=weight_loaders.PartialCheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         num_train_steps=30_000,
         batch_size=64,
         lr_schedule=_optimizer.CosineDecaySchedule(
@@ -843,9 +838,7 @@ _CONFIGS = [
         data=_restaurant_franka_data_config(),
         assets_base_dir=_RESTAURANT_ASSETS_BASE_DIR,
         checkpoint_base_dir=_RESTAURANT_CHECKPOINT_BASE_DIR,
-        weight_loader=weight_loaders.CheckpointWeightLoader(
-            _restaurant_base_params_path()
-        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(_restaurant_base_params_path(), strict=True),
         batch_size=256,
         num_train_steps=60_000,
     ),
@@ -856,7 +849,7 @@ _CONFIGS = [
         data=_restaurant_franka_data_config(),
         assets_base_dir=_RESTAURANT_ASSETS_BASE_DIR,
         checkpoint_base_dir=_RESTAURANT_CHECKPOINT_BASE_DIR,
-        weight_loader=weight_loaders.CheckpointWeightLoader(_restaurant_base_params_path()),
+        weight_loader=weight_loaders.CheckpointWeightLoader(_restaurant_base_params_path(), strict=True),
         batch_size=32,
         num_train_steps=60_000,
         ema_decay=None,
@@ -868,7 +861,7 @@ _CONFIGS = [
         data=_restaurant_franka_data_config(),
         assets_base_dir=_RESTAURANT_ASSETS_BASE_DIR,
         checkpoint_base_dir=_RESTAURANT_CHECKPOINT_BASE_DIR,
-        weight_loader=weight_loaders.CheckpointWeightLoader(_restaurant_base_params_path()),
+        weight_loader=weight_loaders.CheckpointWeightLoader(_restaurant_base_params_path(), strict=True),
         batch_size=32,
         num_train_steps=60_000,
         ema_decay=None,
@@ -880,9 +873,7 @@ _CONFIGS = [
         data=_restaurant_franka_data_config(),
         assets_base_dir=_RESTAURANT_ASSETS_BASE_DIR,
         checkpoint_base_dir=_RESTAURANT_CHECKPOINT_BASE_DIR,
-        weight_loader=weight_loaders.CheckpointWeightLoader(
-            _restaurant_base_params_path()
-        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(_restaurant_base_params_path()),
         batch_size=1,
         num_workers=0,
         num_train_steps=1,

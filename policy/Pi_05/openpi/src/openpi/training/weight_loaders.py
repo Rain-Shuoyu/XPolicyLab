@@ -46,15 +46,18 @@ class CheckpointWeightLoader(WeightLoader):
     """
 
     params_path: str
+    # Restaurant fine-tuning enables this to reject a checkpoint from another model topology.
+    strict: bool = False
 
     def load(self, params: at.Params) -> at.Params:
         # We are loading np.ndarray and relying on the training code to properly convert and shard the params.
         loaded_params = _model.restore_params(download.maybe_download(self.params_path), restore_type=np.ndarray)
-        flat_ref = flax.traverse_util.flatten_dict(params, sep="/")
-        flat_loaded = flax.traverse_util.flatten_dict(loaded_params, sep="/")
-        unexpected = sorted(set(flat_loaded) - set(flat_ref))
-        if unexpected:
-            raise ValueError(f"Checkpoint has unexpected parameter keys: {', '.join(unexpected[:20])}")
+        if self.strict:
+            flat_ref = flax.traverse_util.flatten_dict(params, sep="/")
+            flat_loaded = flax.traverse_util.flatten_dict(loaded_params, sep="/")
+            unexpected = sorted(set(flat_loaded) - set(flat_ref))
+            if unexpected:
+                raise ValueError(f"Checkpoint has unexpected parameter keys: {', '.join(unexpected[:20])}")
         # Add all missing LoRA weights.
         return _merge_params(loaded_params, params, missing_regex=".*lora.*")
 
