@@ -17,7 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from lerobot.utils.constants import HF_LEROBOT_HOME
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
-from XPolicyLab.utils.data_loader import load
+from XPolicyLab.utils.data_loader import load, load_xspark_v1
 from XPolicyLab.utils.load_file import load_json, load_yaml
 from XPolicyLab.utils.process_data import decode_image_bit
 from XPolicyLab.policy.Pi_05.color_order import (
@@ -701,11 +701,14 @@ def convert_one(
     pil_rgb_jpeg_source=False,
 ):
 
-    data = load(
-        str(input_path),
-        data_type=data_type,
-        data_version=data_version,
-    )
+    if pil_rgb_jpeg_source:
+        if data_type not in {"xspark", "RoboDojo"} or data_version != "v1.0":
+            raise ValueError("PIL RGB JPEG source requires xspark/RoboDojo v1.0 HDF5")
+        # Keep the JPEG buffers intact until _decode_images_if_needed can mark
+        # them as encoded and convert OpenCV's BGR output to RGB.
+        data = load_xspark_v1(str(input_path), decode_images=False)
+    else:
+        data = load(str(input_path), data_type=data_type, data_version=data_version)
 
     state = _extract_qpos(data)
     action = _extract_action(data)

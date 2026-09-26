@@ -4,6 +4,7 @@ import io
 import importlib.util
 import sys
 
+import h5py
 import numpy as np
 import pytest
 from PIL import Image
@@ -138,3 +139,50 @@ def test_pi05_pil_rgb_jpeg_conversion_and_already_decoded_rgb():
     )
     assert np.array_equal(from_jpeg[0], expected)
     assert np.array_equal(from_rgb[0], expected)
+
+
+def test_pi05_real_hdf5_loader_preserves_jpeg_identity_until_rgb_conversion(tmp_path):
+    original = np.zeros((8, 8, 3), dtype=np.uint8)
+    original[..., 0], original[..., 2] = 230, 14
+    buffer = io.BytesIO()
+    Image.fromarray(original, mode='RGB').save(buffer, format='JPEG', quality=95)
+    raw = np.frombuffer(buffer.getvalue(), dtype=np.uint8)
+    expected = np.asarray(Image.open(io.BytesIO(buffer.getvalue())).convert('RGB'))
+    source = tmp_path / 'episode.hdf5'
+    with h5py.File(source, 'w') as handle:
+        for prefix in ('state', 'action'):
+            for key, width in (('left_arm_joint_states', 7), ('left_ee_joint_states', 1),
+                               ('right_arm_joint_states', 7), ('right_ee_joint_states', 1)):
+                handle.create_dataset(f'{prefix}/{key}', data=np.zeros((1, width), dtype=np.float32))
+        for camera in ('cam_head', 'cam_left_wrist', 'cam_right_wrist'):
+            image = handle.create_dataset(
+                f'vision/{camera}/colors', shape=(1,), dtype=h5py.vlen_dtype(np.dtype('uint8'))
+            )
+            image[0] = raw
+
+    class RecordingDataset:
+        def __init__(self):
+            self.frames = []
+
+        def add_frame(self, frame):
+            self.frames.append(frame)
+
+        def save_episode(self):
+            pass
+
+    dataset = RecordingDataset()
+    converter.convert_one(
+        source, dataset, 'xspark', 'v1.0', (8, 8), (8, 8), 8, 8,
+        instruction_pool=['Serve the order.'], pil_rgb_jpeg_source=True,
+    )
+    assert len(dataset.frames) == 1
+    for camera in ('cam_high', 'cam_left_wrist', 'cam_right_wrist'):
+        assert np.array_equal(dataset.frames[0][f'observation.images.{camera}'], expected)
+
+    legacy = RecordingDataset()
+    converter.convert_one(
+        source, legacy, 'xspark', 'v1.0', (8, 8), (8, 8), 8, 8,
+        instruction_pool=['Serve the order.'], pil_rgb_jpeg_source=False,
+    )
+    for camera in ('cam_high', 'cam_left_wrist', 'cam_right_wrist'):
+        assert np.array_equal(legacy.frames[0][f'observation.images.{camera}'], expected[..., ::-1])
