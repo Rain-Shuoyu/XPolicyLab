@@ -312,6 +312,15 @@ def test_resume_contract_rejects_different_dataset_identity(tmp_path) -> None:
         finetune.check_training_contract(tmp_path, dataclasses.replace(action, data=other_data), params, resuming=True)
 
 
+@pytest.mark.parametrize("changed", [{"seed": 17}, {"batch_size": 16}])
+def test_resume_contract_rejects_changed_training_sequence(tmp_path, changed) -> None:
+    params = nnx.state(_TinyPi())
+    train_config = config.get_config("pi05_restaurant_franka_lora")
+    finetune.check_training_contract(tmp_path, train_config, params, resuming=False)
+    with pytest.raises(ValueError, match="training contract"):
+        finetune.check_training_contract(tmp_path, dataclasses.replace(train_config, **changed), params, resuming=True)
+
+
 def test_checkpoint_roundtrip_keeps_model_and_optimizer_state(tmp_path) -> None:
     model = _TinyPiLora()
     graphdef, params = nnx.split(model)

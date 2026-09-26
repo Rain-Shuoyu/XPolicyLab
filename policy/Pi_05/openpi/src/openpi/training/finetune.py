@@ -37,8 +37,10 @@ def check_training_contract(checkpoint_dir: Path, config: "TrainConfig", params:
     path = checkpoint_dir / "training_contract.json"
     trainable = params.filter(config.trainable_filter).flat_state()
     contract = {
-        "schema_version": 1,
+        "schema_version": 2,
         "config_name": config.name,
+        "seed": config.seed,
+        "batch_size": config.batch_size,
         "model": dataclasses.asdict(config.model),
         "data_repo_id": getattr(config.data, "repo_id", None),
         "data_asset_id": getattr(getattr(config.data, "assets", None), "asset_id", None),
