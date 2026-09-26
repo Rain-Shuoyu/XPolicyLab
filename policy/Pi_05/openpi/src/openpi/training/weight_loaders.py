@@ -58,6 +58,11 @@ class CheckpointWeightLoader(WeightLoader):
             unexpected = sorted(set(flat_loaded) - set(flat_ref))
             if unexpected:
                 raise ValueError(f"Checkpoint has unexpected parameter keys: {', '.join(unexpected[:20])}")
+            reference_lora = {key for key in flat_ref if "lora" in key}
+            loaded_lora = {key for key in flat_loaded if "lora" in key}
+            if loaded_lora and loaded_lora != reference_lora:
+                missing = sorted(reference_lora - loaded_lora)
+                raise ValueError(f"Checkpoint has partial LoRA parameters; missing: {', '.join(missing[:20])}")
         # Add all missing LoRA weights.
         return _merge_params(loaded_params, params, missing_regex=".*lora.*")
 

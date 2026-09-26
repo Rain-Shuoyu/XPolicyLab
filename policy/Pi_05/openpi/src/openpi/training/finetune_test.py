@@ -89,6 +89,28 @@ def test_checkpoint_loader_rejects_unexpected_adapter_keys(monkeypatch: pytest.M
         weight_loaders.CheckpointWeightLoader("checkpoint/params", strict=True).load({"a": np.zeros((2,))})
 
 
+def test_checkpoint_loader_rejects_incomplete_lora_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(weight_loaders.download, "maybe_download", lambda path: path)
+    monkeypatch.setattr(
+        _model,
+        "restore_params",
+        lambda *_args, **_kwargs: {"a": np.ones((2,)), "layer_lora_a": np.ones((2,))},
+    )
+    reference = {"a": np.zeros((2,)), "layer_lora_a": np.zeros((2,)), "layer_lora_b": np.zeros((2,))}
+    with pytest.raises(ValueError, match="partial LoRA"):
+        weight_loaders.CheckpointWeightLoader("checkpoint/params", strict=True).load(reference)
+
+
+def test_checkpoint_loader_initializes_all_lora_adapters_from_base(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(weight_loaders.download, "maybe_download", lambda path: path)
+    monkeypatch.setattr(_model, "restore_params", lambda *_args, **_kwargs: {"a": np.ones((2,))})
+    reference = {"a": np.zeros((2,)), "layer_lora_a": np.zeros((2,)), "layer_lora_b": np.zeros((2,))}
+    loaded = weight_loaders.CheckpointWeightLoader("checkpoint/params", strict=True).load(reference)
+    np.testing.assert_array_equal(loaded["a"], np.ones((2,)))
+    np.testing.assert_array_equal(loaded["layer_lora_a"], reference["layer_lora_a"])
+    np.testing.assert_array_equal(loaded["layer_lora_b"], reference["layer_lora_b"])
+
+
 def test_action_side_filter_rejects_language_and_vision() -> None:
     selector = finetune.action_side_filter()
     assert _selected(selector, "PaliGemma/llm/final_norm_1/Dense_0/kernel")
