@@ -77,6 +77,9 @@ manifest = {
     "schema_version": "osb_pi05_lerobot_conversion_v1",
     "collection_summary": str(summary_path),
     "source_sampling_hz": "50/3",
+    "source_image_encoding": "pil_rgb_jpeg",
+    "lerobot_camera_color_order": "RGB",
+    "model_input_color_order": "RGB",
     "lerobot_fps": 17,
     "resampled": False,
     "repo_id": os.environ["OPENPI_LEROBOT_REPO_ID"],
@@ -102,6 +105,7 @@ VIRTUAL_ENV="${OPENPI_VENV}" \
   --fps 17 \
   --instruction-file "${INSTRUCTION_FILE}" \
   --repo_id "${OPENPI_LEROBOT_REPO_ID}" \
+  --pil-rgb-jpeg-source \
   --max_episode 50
 
 export MANIFEST_PATH

@@ -1,8 +1,6 @@
 import os
 import numpy as np
-import shutil
 import argparse
-import cv2
 import h5py
 import dataclasses
 from pathlib import Path
@@ -12,6 +10,10 @@ from tqdm import tqdm
 
 from XPolicyLab.utils.load_file import load_yaml, load_json
 from XPolicyLab.utils.process_data import decode_image_bit
+from XPolicyLab.policy.Pi_05.color_order import (
+    decoded_frames_for_lerobot, is_encoded_image_source,
+    require_new_dataset_path, write_rgb_dataset_contract,
+)
 
 from lerobot.common.datasets.lerobot_dataset import HF_LEROBOT_HOME
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
@@ -73,8 +75,7 @@ def create_empty_dataset(
         }
 
     output_path = HF_LEROBOT_HOME / repo_id
-    if output_path.exists():
-        shutil.rmtree(output_path)
+    require_new_dataset_path(output_path)
 
     return LeRobotDataset.create(
         repo_id=repo_id,
@@ -89,7 +90,11 @@ def create_empty_dataset(
     )
 
 def _load_compressed_images(group: h5py.Group, key: str) -> np.ndarray:
-    return np.asarray(decode_image_bit(group[key]))
+    source = group[key][:]
+    frames = np.asarray(decode_image_bit(source))
+    return decoded_frames_for_lerobot(
+        frames, pil_rgb_jpeg_source=True, encoded=is_encoded_image_source(source)
+    )
 
 def _make_action_from_state(state: np.ndarray) -> np.ndarray:
     action = np.empty_like(state, dtype=np.float32)
@@ -230,6 +235,8 @@ def main():
             tqdm.write(f"Finished {ep_file.name} with {num_frames} frames")
         except Exception as e:
             tqdm.write(f"Error processing episode {ep_file}: {e}")
+
+    write_rgb_dataset_contract(HF_LEROBOT_HOME / repo_id, source='pil_rgb_jpeg')
 
 if __name__ == "__main__":
     main()
