@@ -29,9 +29,10 @@ class RolloutStartupTest(unittest.TestCase):
   thread=threading.Thread(target=server._accept_connections);thread.start()
   client=Client(host='127.0.0.1',port=server.server_socket.getsockname()[1])
   try:
-   self.assertEqual(client.sock.getsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY),1)
+   self.assertNotEqual(client.sock.getsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY),0)
    self.assertEqual(client.call('echo',{'value':42}),{'value':42})
-   self.assertEqual(accepted,[1])
+   self.assertEqual(len(accepted),1)
+   self.assertNotEqual(accepted[0],0)
   finally:
    client.close();server.stop();thread.join(timeout=1)
    for key,value in saved.items():
