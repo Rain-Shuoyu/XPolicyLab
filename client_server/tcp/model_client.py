@@ -44,6 +44,7 @@ class ModelClient:
                     f"(attempt {attempts + 1}/{max_attempts}, timeout={self.timeout}s)",
                 )
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 self.sock.settimeout(self.timeout)
                 self.sock.connect((self.host, self.port))
                 _status("CONNECTED", GREEN, f"legacy TCP policy server connected: {self.host}:{self.port}")

@@ -46,6 +46,7 @@ class ModelServer:
         while self.running:
             try:
                 client_socket, addr = self.server_socket.accept()
+                client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 print(f"✅ Client connected from {addr}")
                 # Handle each client in a separate thread
                 t = threading.Thread(target=self._handle_client, args=(client_socket,), daemon=True)
